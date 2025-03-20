@@ -8,18 +8,18 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import { faInstagram, faFacebook } from "@fortawesome/free-brands-svg-icons";
 import "../components/style.css";
-import brandLogo from "D:/SPIT-FYMCA/WT PRAC/LAB 7/lab_7/src/assets/images/brand_logo.png";
-import shoeMain from "D:/SPIT-FYMCA/WT PRAC/LAB 7/lab_7/src/assets/images/NIKE+REVOLUTION+7.jpeg";
-import shoe1 from "D:/SPIT-FYMCA/WT PRAC/LAB 7/lab_7/src/assets/images/shoe1.png";
-import shoe2 from "D:/SPIT-FYMCA/WT PRAC/LAB 7/lab_7/src/assets/images/shoe2.png";
-import shoe3 from "D:/SPIT-FYMCA/WT PRAC/LAB 7/lab_7/src/assets/images/shoe3.png";
-import shoe4 from "D:/SPIT-FYMCA/WT PRAC/LAB 7/lab_7/src/assets/images/shoe4.png";
-import shoe5 from "D:/SPIT-FYMCA/WT PRAC/LAB 7/lab_7/src/assets/images/shoe5.png";
-import shoe6 from "D:/SPIT-FYMCA/WT PRAC/LAB 7/lab_7/src/assets/images/shoe6.png";
-import shoe7 from "D:/SPIT-FYMCA/WT PRAC/LAB 7/lab_7/src/assets/images/shoe7.png";
-import shoe8 from "D:/SPIT-FYMCA/WT PRAC/LAB 7/lab_7/src/assets/images/shoe8.png";
-import flipkartLogo from "D:/SPIT-FYMCA/WT PRAC/LAB 7/lab_7/src/assets/images/flipkart.png";
-import amazonLogo from "D:/SPIT-FYMCA/WT PRAC/LAB 7/lab_7/src/assets/images/amazon.png";
+import shoeMain from "/home/atharva/DevOps/ISE/Devops_ISE/src/assets/images/NIKE+REVOLUTION+7.jpeg";
+import brandLogo from "/home/atharva/DevOps/ISE/Devops_ISE/src/assets/images/brand_logo.png";
+import shoe1 from "/home/atharva/DevOps/ISE/Devops_ISE/src/assets/images/shoe1.png";
+import shoe2 from "/home/atharva/DevOps/ISE/Devops_ISE/src/assets/images/shoe2.png";
+import shoe3 from "/home/atharva/DevOps/ISE/Devops_ISE/src/assets/images/shoe3.png";
+import shoe4 from "/home/atharva/DevOps/ISE/Devops_ISE/src/assets/images/shoe4.png";
+import shoe5 from "/home/atharva/DevOps/ISE/Devops_ISE/src/assets/images/shoe5.png";
+import shoe6 from "/home/atharva/DevOps/ISE/Devops_ISE/src/assets/images/shoe6.png";
+import shoe7 from "/home/atharva/DevOps/ISE/Devops_ISE/src/assets/images/shoe7.png";
+import shoe8 from "/home/atharva/DevOps/ISE/Devops_ISE/src/assets/images/shoe8.png";
+import flipkartLogo from "/home/atharva/DevOps/ISE/Devops_ISE/src/assets/images/flipkart.png";
+import amazonLogo from "/home/atharva/DevOps/ISE/Devops_ISE/src/assets/images/amazon.png";
 import { useNavigate } from "react-router-dom";
 
 const HomePage = () => {
