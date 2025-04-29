@@ -25,9 +25,34 @@ docker build -t "${IMAGE_NAME}:${TAG}" .
 
 # 3) (Optional) Smoke-test by running it locally
 echo ">>> Starting smoke-test container"
+# Stop and remove any existing smoke-test container
 docker rm -f smoke-test || true
+
+# Find and stop any containers using port 5173
+echo ">>> Checking for containers using port 5173"
+PORT_CONTAINERS=$(docker ps -q --filter "publish=5173")
+if [ -n "$PORT_CONTAINERS" ]; then
+  echo ">>> Found containers using port 5173, stopping them: $PORT_CONTAINERS"
+  docker stop $PORT_CONTAINERS || true
+  docker rm $PORT_CONTAINERS || true
+fi
+
+# Use a dynamic port to avoid conflicts
+SMOKE_TEST_PORT=5173
+if lsof -Pi :5173 -sTCP:LISTEN -t >/dev/null ; then
+  echo ">>> Port 5173 is still in use, trying alternative ports"
+  for PORT in 5174 5175 5176 5177 5178; do
+    if ! lsof -Pi :$PORT -sTCP:LISTEN -t >/dev/null ; then
+      SMOKE_TEST_PORT=$PORT
+      echo ">>> Using port $SMOKE_TEST_PORT for smoke test"
+      break
+    fi
+  done
+fi
+
+# Run the container with the selected port
 docker run -d --name smoke-test \
-  -p 127.0.0.1:5173:5173 \
+  -p 127.0.0.1:${SMOKE_TEST_PORT}:5173 \
   "${IMAGE_NAME}:${TAG}"
 sleep 5
 echo ">>> Containers:"
@@ -47,4 +72,8 @@ echo ">>> Pushing ${IMAGE_NAME}:${TAG}"
 docker push "${IMAGE_NAME}:${TAG}"
 
 echo ">>> Pushing ${IMAGE_NAME}:latest"
-docker push "${IMAGE_NAME}:latest" 
+docker push "${IMAGE_NAME}:latest"
+
+# Clean up after successful deployment
+echo ">>> Cleaning up smoke-test container"
+docker rm -f smoke-test || true 
