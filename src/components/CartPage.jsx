@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import brandLogo from "/home/atharva/DevOps/ISE/Devops_ISE/src/assets/images/brand_logo.png";
+import brandLogo from "../assets/images/brand_logo.png";
 import { useNavigate } from "react-router-dom";
 
 const CartPage = () => {

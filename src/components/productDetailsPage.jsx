@@ -6,17 +6,18 @@ import {
   faCartShopping,
   faShoppingCart,
 } from "@fortawesome/free-solid-svg-icons";
-import brandLogo from "/home/atharva/DevOps/ISE/Devops_ISE/src/assets/images/brand_logo.png";
-import shoe1 from "/home/atharva/DevOps/ISE/Devops_ISE/src/assets/images/shoe1.png";
-import shoe2 from "/home/atharva/DevOps/ISE/Devops_ISE/src/assets/images/shoe2.png";
-import shoe3 from "/home/atharva/DevOps/ISE/Devops_ISE/src/assets/images/shoe3.png";
-import shoe4 from "/home/atharva/DevOps/ISE/Devops_ISE/src/assets/images/shoe4.png";
-import shoe5 from "/home/atharva/DevOps/ISE/Devops_ISE/src/assets/images/shoe5.png";
-import shoe6 from "/home/atharva/DevOps/ISE/Devops_ISE/src/assets/images/shoe6.png";
-import shoe7 from "/home/atharva/DevOps/ISE/Devops_ISE/src/assets/images/shoe7.png";
-import shoe8 from "/home/atharva/DevOps/ISE/Devops_ISE/src/assets/images/shoe8.png";
-import flipkartLogo from "/home/atharva/DevOps/ISE/Devops_ISE/src/assets/images/flipkart.png";
-import amazonLogo from "/home/atharva/DevOps/ISE/Devops_ISE/src/assets/images/amazon.png";
+import "../components/style.css";
+import brandLogo from "../assets/images/brand_logo.png";
+import shoe1 from "../assets/images/shoe1.png";
+import shoe2 from "../assets/images/shoe2.png";
+import shoe3 from "../assets/images/shoe3.png";
+import shoe4 from "../assets/images/shoe4.png";
+import shoe5 from "../assets/images/shoe5.png";
+import shoe6 from "../assets/images/shoe6.png";
+import shoe7 from "../assets/images/shoe7.png";
+import shoe8 from "../assets/images/shoe8.png";
+import flipkartLogo from "../assets/images/flipkart.png";
+import amazonLogo from "../assets/images/amazon.png";
 import { useNavigate } from "react-router-dom";
 
 const ProductsDetailsPage = () => {

@@ -8,18 +8,18 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import { faInstagram, faFacebook } from "@fortawesome/free-brands-svg-icons";
 import "../components/style.css";
-import shoeMain from "/home/atharva/DevOps/ISE/Devops_ISE/src/assets/images/NIKE+REVOLUTION+7.jpeg";
-import brandLogo from "/home/atharva/DevOps/ISE/Devops_ISE/src/assets/images/brand_logo.png";
-import shoe1 from "/home/atharva/DevOps/ISE/Devops_ISE/src/assets/images/shoe1.png";
-import shoe2 from "/home/atharva/DevOps/ISE/Devops_ISE/src/assets/images/shoe2.png";
-import shoe3 from "/home/atharva/DevOps/ISE/Devops_ISE/src/assets/images/shoe3.png";
-import shoe4 from "/home/atharva/DevOps/ISE/Devops_ISE/src/assets/images/shoe4.png";
-import shoe5 from "/home/atharva/DevOps/ISE/Devops_ISE/src/assets/images/shoe5.png";
-import shoe6 from "/home/atharva/DevOps/ISE/Devops_ISE/src/assets/images/shoe6.png";
-import shoe7 from "/home/atharva/DevOps/ISE/Devops_ISE/src/assets/images/shoe7.png";
-import shoe8 from "/home/atharva/DevOps/ISE/Devops_ISE/src/assets/images/shoe8.png";
-import flipkartLogo from "/home/atharva/DevOps/ISE/Devops_ISE/src/assets/images/flipkart.png";
-import amazonLogo from "/home/atharva/DevOps/ISE/Devops_ISE/src/assets/images/amazon.png";
+import shoeMain from "../assets/images/NIKE+REVOLUTION+7.jpeg";
+import brandLogo from "../assets/images/brand_logo.png";
+import shoe1 from "../assets/images/shoe1.png";
+import shoe2 from "../assets/images/shoe2.png";
+import shoe3 from "../assets/images/shoe3.png";
+import shoe4 from "../assets/images/shoe4.png";
+import shoe5 from "../assets/images/shoe5.png";
+import shoe6 from "../assets/images/shoe6.png";
+import shoe7 from "../assets/images/shoe7.png";
+import shoe8 from "../assets/images/shoe8.png";
+import flipkartLogo from "../assets/images/flipkart.png";
+import amazonLogo from "../assets/images/amazon.png";
 import { useNavigate } from "react-router-dom";
 
 const HomePage = () => {
@@ -319,10 +319,10 @@ const HomePage = () => {
           <h1>Get in Touch with Us</h1>
           <br />
           <p style={{ fontSize: "larger", fontWeight: 500 }}>
-            We’re here to help you step into your perfect pair! Whether you have
+            We're here to help you step into your perfect pair! Whether you have
             questions about sizing, need assistance with an order, or want to
             know more about our latest styles, our team is ready to assist.
-            Don’t hesitate to get in touch—we’d love to hear from you!
+            Don't hesitate to get in touch—we'd love to hear from you!
           </p>
           <br />
           <p style={{ fontSize: "large", fontWeight: 300 }}>Customer Care:</p>
