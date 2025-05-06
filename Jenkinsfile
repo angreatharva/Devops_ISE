@@ -2,7 +2,7 @@ pipeline {
     agent any
     
     environment {
-        DOCKER_CREDENTIALS = credentials('docker-hub-credentials')
+        DOCKER_CREDENTIALS = credentials('Docker')
         DOCKER_USER = "${DOCKER_CREDENTIALS_USR}"
         DOCKER_PASS = "${DOCKER_CREDENTIALS_PSW}"
         KUBE_CONFIG = credentials('kubeconfig')

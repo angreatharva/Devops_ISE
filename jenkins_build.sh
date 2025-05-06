@@ -103,4 +103,4 @@ echo ">>> Waiting for deployment to roll out"
 kubectl rollout status deployment/abstergo-app
 
 echo ">>> Deployment completed successfully!"
-echo ">>> Application is available at: $(kubectl get service abstergo-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}')" 
+echo ">>> Application is available at: $(kubectl get service abstergo-service -o jsonpath='{
