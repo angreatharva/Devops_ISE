@@ -55,26 +55,28 @@ pipeline {
         }
         stage('Kubernetes Deploy') {
             steps {
-                echo 'Deploying to Kubernetes...'
-                sh '''
-                    # Get the latest image tag
-                    IMAGE_NAME="angreatharva/abstergo"
-                    TAG="${BUILD_NUMBER}"
-                    
-                    # Update the image in deployment YAML
-                    sed -i "s|image: ${IMAGE_NAME}:.*|image: ${IMAGE_NAME}:${TAG}|g" k8s/deployment.yaml
-                    
-                    # Deploy using sudo (required for minikube access)
-                    echo "Deploying to minikube..."
-                    sudo -E KUBECONFIG=/home/atharva/.kube/config kubectl apply -f k8s/configmap.yaml || true
-                    sudo -E KUBECONFIG=/home/atharva/.kube/config kubectl apply -f k8s/deployment.yaml 
-                    sudo -E KUBECONFIG=/home/atharva/.kube/config kubectl apply -f k8s/service.yaml
-                    
-                    # Verify deployment
-                    echo "Checking deployment status:"
-                    sudo -E KUBECONFIG=/home/atharva/.kube/config kubectl get pods -l app=abstergo
-                    sudo -E KUBECONFIG=/home/atharva/.kube/config kubectl get svc abstergo-service
-                '''
+                withCredentials([file(credentialsId: 'kubernetes-config', variable: 'KUBECONFIG')]) {
+                    echo 'Deploying to Kubernetes...'
+                    sh '''
+                        # Get the latest image tag
+                        IMAGE_NAME="angreatharva/abstergo"
+                        TAG="${BUILD_NUMBER}"
+                        
+                        # Update the image in deployment YAML
+                        sed -i "s|image: ${IMAGE_NAME}:.*|image: ${IMAGE_NAME}:${TAG}|g" k8s/deployment.yaml
+                        
+                        # Deploy using the provided kubeconfig
+                        echo "Deploying to Kubernetes cluster..."
+                        kubectl --kubeconfig=${KUBECONFIG} apply -f k8s/configmap.yaml
+                        kubectl --kubeconfig=${KUBECONFIG} apply -f k8s/deployment.yaml
+                        kubectl --kubeconfig=${KUBECONFIG} apply -f k8s/service.yaml
+                        
+                        # Verify deployment
+                        echo "Checking deployment status:"
+                        kubectl --kubeconfig=${KUBECONFIG} get pods -l app=abstergo
+                        kubectl --kubeconfig=${KUBECONFIG} get svc abstergo-service
+                    '''
+                }
             }
         }
     }
