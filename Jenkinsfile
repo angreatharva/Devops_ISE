@@ -6,6 +6,8 @@ pipeline {
         // Map credentials to what jenkins_build.sh expects
         DOCKER_USER = "${DOCKER_HUB_CREDENTIALS_USR}"
         DOCKER_PASS = "${DOCKER_HUB_CREDENTIALS_PSW}"
+        // Skip Kubernetes deployment in the build script
+        SKIP_KUBERNETES = "true"
     }
     stages {
         stage('Checkout SCM') {
@@ -54,27 +56,25 @@ pipeline {
         stage('Kubernetes Deploy') {
             steps {
                 echo 'Deploying to Kubernetes...'
-                // Use a Secret file credential in Jenkins for your kubeconfig YAML
-                withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG_PATH')]) {
-                    sh '''
-                        # Set up kubeconfig in workspace
-                        mkdir -p "$WORKSPACE/.kube"
-                        cp "$KUBECONFIG_PATH" "$WORKSPACE/.kube/config"
-                        chmod 600 "$WORKSPACE/.kube/config"
-                        export KUBECONFIG="$WORKSPACE/.kube/config"
-                        
-                        # Verify connectivity
-                        kubectl cluster-info
-                        
-                        # Apply manifests
-                        kubectl apply -f k8s/configmap.yaml || true
-                        kubectl apply -f k8s/deployment.yaml
-                        kubectl apply -f k8s/service.yaml
-                        
-                        # Wait for rollout
-                        kubectl rollout status deployment/abstergo-app --timeout=60s
-                    '''
-                }
+                sh '''
+                    # Get the latest image tag
+                    IMAGE_NAME="angreatharva/abstergo"
+                    TAG="${BUILD_NUMBER}"
+                    
+                    # Update the image in deployment YAML
+                    sed -i "s|image: ${IMAGE_NAME}:.*|image: ${IMAGE_NAME}:${TAG}|g" k8s/deployment.yaml
+                    
+                    # Deploy using sudo (required for minikube access)
+                    echo "Deploying to minikube..."
+                    sudo -E KUBECONFIG=/home/atharva/.kube/config kubectl apply -f k8s/configmap.yaml || true
+                    sudo -E KUBECONFIG=/home/atharva/.kube/config kubectl apply -f k8s/deployment.yaml 
+                    sudo -E KUBECONFIG=/home/atharva/.kube/config kubectl apply -f k8s/service.yaml
+                    
+                    # Verify deployment
+                    echo "Checking deployment status:"
+                    sudo -E KUBECONFIG=/home/atharva/.kube/config kubectl get pods -l app=abstergo
+                    sudo -E KUBECONFIG=/home/atharva/.kube/config kubectl get svc abstergo-service
+                '''
             }
         }
     }
