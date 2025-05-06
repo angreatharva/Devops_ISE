@@ -67,9 +67,22 @@ pipeline {
                     sed -i "s|image: ${IMAGE_NAME}:.*|image: ${IMAGE_NAME}:${TAG}|g" k8s/deployment.yaml
                     
                     # First check if kubectl is available
-                    if ! command -v kubectl &> /dev/null; then
+                    KUBECTL_PATH=$(command -v kubectl || echo "")
+                    
+                    if [ -z "$KUBECTL_PATH" ]; then
                         echo "ERROR: kubectl command not found"
                         echo "Please install kubectl on the Jenkins server"
+                        exit 1
+                    else
+                        echo "Found kubectl at: $KUBECTL_PATH"
+                    fi
+                    
+                    # Export PATH to include kubectl directory
+                    export PATH=$(dirname "$KUBECTL_PATH"):$PATH
+                    
+                    # Verify kubectl works
+                    if ! kubectl version --client; then
+                        echo "ERROR: kubectl command found but not working"
                         exit 1
                     fi
                     
@@ -83,10 +96,14 @@ pipeline {
                     fi
                     
                     # Check for kubectl access directly
+                    echo "Checking Kubernetes cluster connection..."
                     if kubectl cluster-info; then
                         echo "Kubernetes connection successful!"
                     else
                         echo "ERROR: Cannot connect to Kubernetes cluster"
+                        echo "Make sure the KUBECONFIG environment variable is set correctly"
+                        echo "Current KUBECONFIG: $KUBECONFIG"
+                        echo ""
                         echo "To fix this, run the following commands on the Jenkins server as root:"
                         echo "------------------------------------------------------"
                         echo "# Create a kubeconfig file that Jenkins can use"
