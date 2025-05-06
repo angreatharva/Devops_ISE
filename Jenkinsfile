@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         // Docker Hub credentials stored in Jenkins Credentials (Username with password)
-        DOCKER_HUB_CREDENTIALS = credentials('docker-hub-credentials')
+        DOCKER_HUB_CREDENTIALS = credentials('Docker')
     }
 
     stages {
