@@ -8,6 +8,8 @@ pipeline {
         DOCKER_PASS = "${DOCKER_HUB_CREDENTIALS_PSW}"
         // Skip Kubernetes deployment in the build script
         SKIP_KUBERNETES = "true"
+        // Set KUBECONFIG path for direct kubectl use
+        KUBECONFIG = "/var/lib/jenkins/.kube/config"
     }
     stages {
         stage('Checkout SCM') {
@@ -55,28 +57,26 @@ pipeline {
         }
         stage('Kubernetes Deploy') {
             steps {
-                withCredentials([file(credentialsId: 'kubernetes-config', variable: 'KUBECONFIG')]) {
-                    echo 'Deploying to Kubernetes...'
-                    sh '''
-                        # Get the latest image tag
-                        IMAGE_NAME="angreatharva/abstergo"
-                        TAG="${BUILD_NUMBER}"
-                        
-                        # Update the image in deployment YAML
-                        sed -i "s|image: ${IMAGE_NAME}:.*|image: ${IMAGE_NAME}:${TAG}|g" k8s/deployment.yaml
-                        
-                        # Deploy using the provided kubeconfig
-                        echo "Deploying to Kubernetes cluster..."
-                        kubectl --kubeconfig=${KUBECONFIG} apply -f k8s/configmap.yaml
-                        kubectl --kubeconfig=${KUBECONFIG} apply -f k8s/deployment.yaml
-                        kubectl --kubeconfig=${KUBECONFIG} apply -f k8s/service.yaml
-                        
-                        # Verify deployment
-                        echo "Checking deployment status:"
-                        kubectl --kubeconfig=${KUBECONFIG} get pods -l app=abstergo
-                        kubectl --kubeconfig=${KUBECONFIG} get svc abstergo-service
-                    '''
-                }
+                echo 'Deploying to Kubernetes...'
+                sh '''
+                    # Get the latest image tag
+                    IMAGE_NAME="angreatharva/abstergo"
+                    TAG="${BUILD_NUMBER}"
+                    
+                    # Update the image in deployment YAML
+                    sed -i "s|image: ${IMAGE_NAME}:.*|image: ${IMAGE_NAME}:${TAG}|g" k8s/deployment.yaml
+                    
+                    # Deploy using the configured kubeconfig 
+                    echo "Deploying to Kubernetes cluster..."
+                    kubectl apply -f k8s/configmap.yaml
+                    kubectl apply -f k8s/deployment.yaml
+                    kubectl apply -f k8s/service.yaml
+                    
+                    # Verify deployment
+                    echo "Checking deployment status:"
+                    kubectl get pods -l app=abstergo
+                    kubectl get svc abstergo-service
+                '''
             }
         }
     }
