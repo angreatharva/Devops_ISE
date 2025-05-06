@@ -58,26 +58,29 @@ pipeline {
         stage('Kubernetes Deploy') {
             steps {
                 echo 'Deploying to Kubernetes...'
-                // Set up kubectl config from Jenkins credentials
-                sh "mkdir -p ~/.kube"
-                sh "echo '$KUBE_CONFIG' > ~/.kube/config"
-                sh "chmod 600 ~/.kube/config"
+                // Use the workspace for the kubeconfig to avoid permission issues
+                sh "mkdir -p ${WORKSPACE}/.kube"
+                sh "echo '$KUBE_CONFIG' > ${WORKSPACE}/.kube/config"
+                sh "chmod 600 ${WORKSPACE}/.kube/config"
                 
-                // Check kubernetes connection
-                sh 'kubectl version --client || true'
-                sh 'kubectl cluster-info || true'
+                // Check kubernetes connection with the custom config
+                sh "KUBECONFIG=${WORKSPACE}/.kube/config kubectl version --client || true"
+                sh "KUBECONFIG=${WORKSPACE}/.kube/config kubectl cluster-info || true"
                 
-                // Apply Kubernetes manifests
-                sh 'kubectl apply -f k8s/configmap.yaml || true'
-                sh 'kubectl apply -f k8s/deployment.yaml || true'
-                sh 'kubectl apply -f k8s/service.yaml || true'
+                // Apply Kubernetes manifests with the custom config
+                sh "KUBECONFIG=${WORKSPACE}/.kube/config kubectl apply -f k8s/configmap.yaml || true"
+                sh "KUBECONFIG=${WORKSPACE}/.kube/config kubectl apply -f k8s/deployment.yaml || true"
+                sh "KUBECONFIG=${WORKSPACE}/.kube/config kubectl apply -f k8s/service.yaml || true"
                 
                 // Wait for deployment to complete (but continue if it fails)
-                sh 'kubectl rollout status deployment/abstergo-app --timeout=60s || true'
+                sh "KUBECONFIG=${WORKSPACE}/.kube/config kubectl rollout status deployment/abstergo-app --timeout=60s || true"
                 
-                // Get deployment status
-                sh 'kubectl get pods || true'
-                sh 'kubectl get services || true'
+                // Get deployment status with the custom config
+                sh "KUBECONFIG=${WORKSPACE}/.kube/config kubectl get pods || true"
+                sh "KUBECONFIG=${WORKSPACE}/.kube/config kubectl get services || true"
+                
+                // Clean up
+                sh "rm -rf ${WORKSPACE}/.kube"
             }
         }
     }
