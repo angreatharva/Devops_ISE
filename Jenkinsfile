@@ -66,6 +66,45 @@ pipeline {
                     # Update the image in deployment YAML
                     sed -i "s|image: ${IMAGE_NAME}:.*|image: ${IMAGE_NAME}:${TAG}|g" k8s/deployment.yaml
                     
+                    # First check if kubectl is available
+                    if ! command -v kubectl &> /dev/null; then
+                        echo "ERROR: kubectl command not found"
+                        echo "Please install kubectl on the Jenkins server"
+                        exit 1
+                    fi
+                    
+                    # Check if minikube is running or we're using a different cluster
+                    if command -v minikube &> /dev/null; then
+                        # If minikube is installed, check its status
+                        if ! minikube status | grep -q "Running"; then
+                            echo "WARNING: Minikube is not running"
+                            echo "If you're using Minikube, please start it with: minikube start"
+                        fi
+                    fi
+                    
+                    # Check for kubectl access directly
+                    if kubectl cluster-info; then
+                        echo "Kubernetes connection successful!"
+                    else
+                        echo "ERROR: Cannot connect to Kubernetes cluster"
+                        echo "To fix this, run the following commands on the Jenkins server as root:"
+                        echo "------------------------------------------------------"
+                        echo "# Create a kubeconfig file that Jenkins can use"
+                        echo "mkdir -p /var/lib/jenkins/.kube"
+                        echo "kubectl config view --flatten --minify > /var/lib/jenkins/.kube/config"
+                        echo "chown -R jenkins:jenkins /var/lib/jenkins/.kube"
+                        echo "chmod 600 /var/lib/jenkins/.kube/config"
+                        echo "------------------------------------------------------"
+                        echo "If using Minikube, you may need to copy certificates:"
+                        echo "mkdir -p /var/lib/jenkins/.minikube/profiles/minikube"
+                        echo "cp ~/.minikube/ca.crt /var/lib/jenkins/.minikube/"
+                        echo "cp ~/.minikube/profiles/minikube/client.* /var/lib/jenkins/.minikube/profiles/minikube/"
+                        echo "chown -R jenkins:jenkins /var/lib/jenkins/.minikube"
+                        echo "------------------------------------------------------"
+                        echo "You can also use the prepared script: configure_k8s_access.sh"
+                        exit 1
+                    fi
+                    
                     # Deploy using the configured kubeconfig 
                     echo "Deploying to Kubernetes cluster..."
                     kubectl apply -f k8s/configmap.yaml
@@ -74,7 +113,7 @@ pipeline {
                     
                     # Verify deployment
                     echo "Checking deployment status:"
-                    kubectl get pods -l app=abstergo
+                    kubectl get pods -l app=abstergo-app
                     kubectl get svc abstergo-service
                 '''
             }
