@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: abstergo-config
+data:
+  API_URL: "https://api.abstergo.com"
+  ENVIRONMENT: "production" 

@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: abstergo-app
+  labels:
+    app: abstergo-app
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: abstergo-app
+  template:
+    metadata:
+      labels:
+        app: abstergo-app
+    spec:
+      containers:
+      - name: abstergo-app
+        image: angreatharva/abstergo:latest
+        ports:
+        - containerPort: 5173
+        resources:
+          limits:
+            cpu: "0.5"
+            memory: "512Mi"
+          requests:
+            cpu: "0.2"
+            memory: "256Mi"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 5173
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 5173
+          initialDelaySeconds: 5
+          periodSeconds: 5 
