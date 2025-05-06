@@ -77,3 +77,30 @@ docker push "${IMAGE_NAME}:latest"
 # Clean up after successful deployment
 echo ">>> Cleaning up smoke-test container"
 docker rm -f smoke-test || true 
+
+# 6) Deploy to Kubernetes
+echo ">>> Deploying to Kubernetes"
+
+# Check if kubectl is configured correctly
+if ! kubectl cluster-info &>/dev/null; then
+  echo "ERROR: Cannot connect to Kubernetes cluster. Make sure kubectl is properly configured."
+  exit 1
+fi
+
+# Update deployment image
+echo ">>> Updating deployment with new image tag"
+# Update image tag in deployment yaml
+sed -i "s|image: ${IMAGE_NAME}:.*|image: ${IMAGE_NAME}:${TAG}|g" k8s/deployment.yaml
+
+# Apply Kubernetes manifests
+echo ">>> Applying Kubernetes manifests"
+kubectl apply -f k8s/configmap.yaml
+kubectl apply -f k8s/deployment.yaml
+kubectl apply -f k8s/service.yaml
+
+# Wait for deployment to roll out
+echo ">>> Waiting for deployment to roll out"
+kubectl rollout status deployment/abstergo-app
+
+echo ">>> Deployment completed successfully!"
+echo ">>> Application is available at: $(kubectl get service abstergo-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}')" 
