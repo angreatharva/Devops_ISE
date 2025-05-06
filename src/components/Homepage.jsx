@@ -244,7 +244,7 @@ const HomePage = () => {
           <br />
           <p style={{ fontSize: "larger", fontWeight: 500 }}>
             Step into one of our stores to experience our shoe collection in
-            person! Whether you're looking for the latest styles, expert fitting
+            person! Whether you&apos;re looking for the latest styles, expert fitting
             advice, or just want to browse, our friendly team is here to help
             you find your perfect pair.
           </p>

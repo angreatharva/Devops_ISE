@@ -1,10 +1,8 @@
-import React, { useState, useEffect } from "react";
+import { useState } from "react";
 import { useLocation } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
-  faMapMarkerAlt,
   faCartShopping,
-  faShoppingCart,
 } from "@fortawesome/free-solid-svg-icons";
 import "../components/style.css";
 import brandLogo from "../assets/images/brand_logo.png";
@@ -16,8 +14,6 @@ import shoe5 from "../assets/images/shoe5.png";
 import shoe6 from "../assets/images/shoe6.png";
 import shoe7 from "../assets/images/shoe7.png";
 import shoe8 from "../assets/images/shoe8.png";
-import flipkartLogo from "../assets/images/flipkart.png";
-import amazonLogo from "../assets/images/amazon.png";
 import { useNavigate } from "react-router-dom";
 
 const ProductsDetailsPage = () => {
