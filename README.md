@@ -1,4 +1,4 @@
-# Abstergo Corp Online Shopping Portal
+# Abstergo Corp Online Shopping Portal V1
 
 This repository contains the codebase for Abstergo Corp's online shopping portal along with the CI/CD pipeline for automated deployment.
 
