@@ -105,20 +105,22 @@ pipeline {
                         if which kubectl > /dev/null; then
                             echo "kubectl is installed, proceeding with deployment"
                             
-                            # Check if minikube is running
-                            if minikube status | grep -q "Running"; then
-                                echo "Minikube is running, proceeding with deployment"
+                            # Check if minikube is running by querying API server
+                            if kubectl get nodes --request-timeout=10s &>/dev/null; then
+                                echo "Kubernetes is accessible, proceeding with deployment"
                                 
                                 # Deploy using the configured kubeconfig 
                                 echo "Deploying to Kubernetes cluster..."
-                                kubectl apply -f k8s/configmap.yaml
+                                kubectl apply -f k8s/configmap.yaml || echo "No configmap found, skipping"
                                 kubectl apply -f k8s/deployment.yaml
                                 kubectl apply -f k8s/service.yaml
                                 
                                 # Verify deployment with a timeout
                                 timeout 60s kubectl rollout status deployment/abstergo-app
                             else
-                                echo "WARNING: Minikube is not running. Start it with 'minikube start' before running the pipeline."
+                                echo "WARNING: Cannot connect to Kubernetes. Check configurations."
+                                echo "If running Minikube, ensure permissions are correct by running:"
+                                echo "  sudo ./fix_minikube_access.sh"
                                 echo "Skipping Kubernetes deployment, but Docker image was successfully built and pushed."
                             fi
                         else
