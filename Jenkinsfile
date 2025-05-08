@@ -116,7 +116,7 @@ pipeline {
                                 kubectl apply -f k8s/service.yaml
                                 
                                 # Verify deployment with a timeout
-                                timeout 60s kubectl rollout status deployment/abstergo-app
+                                timeout 600s kubectl rollout status deployment/abstergo-app
                             else
                                 echo "WARNING: Cannot connect to Kubernetes. Check configurations."
                                 echo "If running Minikube, ensure permissions are correct by running:"
