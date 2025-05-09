@@ -132,6 +132,34 @@ pipeline {
                 }
             }
         }
+        
+        stage('Deploy Monitoring') {
+            steps {
+                echo 'Setting up monitoring...'
+                timeout(time: 10, unit: 'MINUTES') {
+                    sh '''
+                        # Check if kubectl is available and functioning
+                        if which kubectl > /dev/null && kubectl get nodes --request-timeout=10s &>/dev/null; then
+                            echo "Kubernetes is accessible, proceeding with monitoring setup"
+                            
+                            # Make monitoring scripts executable
+                            chmod +x k8s/monitoring/setup-monitoring.sh
+                            chmod +x k8s/monitoring/deploy-monitoring.sh
+                            
+                            # Change to monitoring directory
+                            cd k8s/monitoring
+                            
+                            # Deploy monitoring
+                            ./deploy-monitoring.sh
+                            
+                            echo "Monitoring setup completed!"
+                        else
+                            echo "WARNING: Cannot connect to Kubernetes. Skipping monitoring setup."
+                        fi
+                    '''
+                }
+            }
+        }
     }
     
     post {

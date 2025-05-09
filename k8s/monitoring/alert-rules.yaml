@@ -1,0 +1,55 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: abstergo-app-alerts
+  namespace: monitoring
+  labels:
+    prometheus: monitoring
+    role: alert-rules
+spec:
+  groups:
+  - name: abstergo-app.rules
+    rules:
+    - alert: HighErrorRate
+      expr: sum(rate(http_requests_total{job="abstergo-app", status_code=~"5.."}[5m])) / sum(rate(http_requests_total{job="abstergo-app"}[5m])) > 0.1
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "High Error Rate in React App"
+        description: "React app is experiencing high error rate (> 10%) for the last 5 minutes"
+        
+    - alert: SlowResponseTime
+      expr: rate(http_request_duration_seconds_sum{job="abstergo-app"}[5m]) / rate(http_request_duration_seconds_count{job="abstergo-app"}[5m]) > 2
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Slow Response Time"
+        description: "React app is experiencing slow response times (> 2s)"
+        
+    - alert: HighMemoryUsage
+      expr: sum(container_memory_usage_bytes{pod=~"abstergo-app.*"}) / sum(kube_pod_container_resource_limits{pod=~"abstergo-app.*", resource="memory"}) > 0.8
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High Memory Usage"
+        description: "React app is using more than 80% of its memory limit for 15 minutes"
+        
+    - alert: PodRestarting
+      expr: increase(kube_pod_container_status_restarts_total{pod=~"abstergo-app.*"}[15m]) > 2
+      labels:
+        severity: warning
+      annotations:
+        summary: "Pod restarting frequently"
+        description: "Pod {{ $labels.pod }} has restarted more than 2 times in the last 15 minutes"
+        
+    - alert: FrontendJSErrors
+      expr: rate(frontend_errors_total{type="unhandled_error"}[5m]) > 0.1
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Frontend JS errors detected"
+        description: "React app is reporting JavaScript errors" 
