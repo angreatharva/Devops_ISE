@@ -99,7 +99,8 @@ pipeline {
         stage('Setup Monitoring') {
             steps {
                 echo 'Setting up monitoring...'
-                sh './scripts/monitoring.sh install'
+                sh 'chmod +x scripts/jenkins-monitoring.sh'
+                sh './scripts/jenkins-monitoring.sh install'
             }
         }
         
