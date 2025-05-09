@@ -91,8 +91,8 @@ pipeline {
         stage('Kubernetes Deploy') {
             steps {
                 echo 'Deploying to Kubernetes...'
-                // Wrap in a timeout to prevent hanging
-                timeout(time: 5, unit: 'MINUTES') {
+                // Wrap in a timeout to prevent hanging - increased timeout to 15 minutes
+                timeout(time: 15, unit: 'MINUTES') {
                     sh '''
                         # Get the latest image tag
                         IMAGE_NAME="angreatharva/abstergo"
@@ -115,8 +115,31 @@ pipeline {
                                 kubectl apply -f k8s/deployment.yaml
                                 kubectl apply -f k8s/service.yaml
                                 
-                                # Verify deployment with a timeout
-                                timeout 600s kubectl rollout status deployment/abstergo-app
+                                # Display pods for debugging
+                                echo "Current pods:"
+                                kubectl get pods
+                                
+                                # Check pod status and logs for any errors
+                                echo "Checking pod status..."
+                                APP_POD=$(kubectl get pods -l app=abstergo-app -o name | head -n 1)
+                                if [ -n "$APP_POD" ]; then
+                                    echo "Pod details:"
+                                    kubectl describe $APP_POD
+                                    echo "Pod logs:"
+                                    kubectl logs $APP_POD --tail=50 || echo "No logs available yet"
+                                else
+                                    echo "No abstergo-app pods found yet"
+                                fi
+                                
+                                # Reduce replica count to 1 for faster deployment
+                                echo "Reducing replica count to 1 for faster deployment..."
+                                kubectl scale deployment abstergo-app --replicas=1
+                                
+                                # Verify deployment with a timeout - reduced to 5 minutes for initial check
+                                echo "Waiting for deployment to complete..."
+                                timeout 300s kubectl rollout status deployment/abstergo-app
+                                
+                                echo "Deployment completed successfully!"
                             else
                                 echo "WARNING: Cannot connect to Kubernetes. Check configurations."
                                 echo "If running Minikube, ensure permissions are correct by running:"
