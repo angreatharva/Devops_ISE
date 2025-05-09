@@ -16,10 +16,12 @@ RUN npm install -g serve
 
 EXPOSE 5173 9113
 
-# Create startup script
-RUN echo '#!/bin/sh\n\
-npm run metrics & \
-serve -s dist -l 5173\n' > /app/start.sh && \
-chmod +x /app/start.sh
+# Create startup script (with explicit command and proper line endings)
+RUN echo '#!/bin/sh' > /app/start.sh && \
+    echo 'npm run metrics & serve -s dist -l 5173' >> /app/start.sh && \
+    chmod +x /app/start.sh
 
-CMD ["/app/start.sh"]
+# Verify the script exists and is executable
+RUN ls -la /app/start.sh && cat /app/start.sh
+
+CMD ["/bin/sh", "/app/start.sh"]

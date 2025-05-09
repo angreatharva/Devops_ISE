@@ -1,11 +1,49 @@
-# Dependencies
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Node.js
 node_modules
-npm-debug.log
-yarn-debug.log
-yarn-error.log
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Kubernetes
+k8s
+
+# Jenkins
+Jenkinsfile
+
+# Old/Unused files
+build.xml
+build.properties
+pom.xml
+addressbook_screenshot.png
+tmp/
+.git
+.github
+configure_k8s_access.sh
+
+# Metrics exporter temp file
+metrics-exporter.js
 
 # Build output
-dist
 build
 
 # Version control
