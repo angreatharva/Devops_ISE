@@ -15,7 +15,7 @@ pipeline {
         DOCKER_IMAGE = 'angreatharva/abstergo'
         DOCKER_TAG = "${env.BUILD_NUMBER}"
         // Docker Hub credentials ID that you'll create in Jenkins
-        DOCKER_CREDENTIALS = 'dockerhub-credentials'
+        DOCKER_CREDENTIALS = 'Docker'
         // Set KUBECONFIG path for direct kubectl use
         KUBECONFIG = "/var/lib/jenkins/.kube/config"
     }
