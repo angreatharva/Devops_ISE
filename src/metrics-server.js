@@ -1,3 +1,4 @@
+/* eslint-env node */
 import express from 'express';
 import cors from 'cors';
 import { getMetrics } from './metrics.js';

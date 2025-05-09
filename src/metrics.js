@@ -50,7 +50,6 @@ export const userInteractionsTotal = new Counter({
 export const trackApiRequest = async (method, url, options = {}) => {
   const startTime = Date.now();
   let response;
-  let error;
   
   try {
     response = await fetch(url, { method, ...options });
@@ -70,7 +69,6 @@ export const trackApiRequest = async (method, url, options = {}) => {
     
     return response;
   } catch (err) {
-    error = err;
     const path = url ? new URL(url).pathname : 'unknown';
     apiErrorsTotal.inc({ endpoint: path, status_code: 'network_error' });
     frontendErrorsTotal.inc({ type: 'api_error' });
