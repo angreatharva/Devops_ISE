@@ -9,7 +9,7 @@ spec:
     app: abstergo-app
   ports:
   - port: 80
-    targetPort: 5173
+    targetPort: 80
     name: web
   - port: 9113
     targetPort: 9113

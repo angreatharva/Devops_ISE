@@ -11,15 +11,11 @@ pipeline {
     }
     
     environment {
-        // Docker Hub credentials stored in Jenkins Credentials
-        DOCKER_HUB_CREDENTIALS = credentials('Docker')
-        // Map credentials to what jenkins_build.sh expects
-        DOCKER_USER = "${DOCKER_HUB_CREDENTIALS_USR}"
-        DOCKER_PASS = "${DOCKER_HUB_CREDENTIALS_PSW}"
-        // Skip Kubernetes deployment in the build script
-        SKIP_KUBERNETES = "true"
-        // Skip smoke test to avoid port conflicts
-        SKIP_SMOKE_TEST = "true"
+        // Update with your Docker Hub username and repository
+        DOCKER_IMAGE = 'angreatharva/abstergo'
+        DOCKER_TAG = "${env.BUILD_NUMBER}"
+        // Docker Hub credentials ID that you'll create in Jenkins
+        DOCKER_CREDENTIALS = 'dockerhub-credentials'
         // Set KUBECONFIG path for direct kubectl use
         KUBECONFIG = "/var/lib/jenkins/.kube/config"
     }
@@ -31,42 +27,36 @@ pipeline {
             }
         }
         
-        stage('Compile') {
+        stage('Verify Setup') {
             steps {
-                echo 'Compiling code...'
-                sh 'npm install'
+                sh 'chmod +x scripts/*.sh'
+                sh './scripts/verify.sh'
             }
         }
         
         stage('Code Review') {
             steps {
                 echo 'Running linter...'
-                // Add timeout specifically for linting stage which seemed to hang
-                timeout(time: 5, unit: 'MINUTES') {
-                    sh 'npm run lint'
-                }
+                sh 'npm run lint'
             }
-            // Add error handling for this stage
-            post {
-                failure {
-                    echo 'Linting failed. Check code quality issues.'
-                }
+        }
+        
+        stage('Code Compile') {
+            steps {
+                echo 'Installing dependencies...'
+                sh 'npm install'
+            }
+        }
+        
+        stage('Metrics Check') {
+            steps {
+                echo 'Running metrics check...'
             }
         }
         
         stage('Test') {
             steps {
                 echo 'Running tests...'
-                // Add your test commands here
-                sh 'echo "Tests would run here"'
-            }
-        }
-        
-        stage('Metric Check') {
-            steps {
-                echo 'Checking code metrics...'
-                // Add your metrics checks here
-                sh 'echo "Metrics would be checked here"'
             }
         }
         
@@ -77,110 +67,52 @@ pipeline {
             }
         }
         
-        stage('Docker Build and Push') {
+        stage('Build Docker Images') {
             steps {
-                echo 'Building and pushing Docker image...'
-                // Make the script executable and run it with a timeout
-                sh 'chmod +x jenkins_build.sh'
-                timeout(time: 10, unit: 'MINUTES') {
-                    sh './jenkins_build.sh'
+                script {
+                    // Login to Docker Hub
+                    withCredentials([usernamePassword(credentialsId: "${DOCKER_CREDENTIALS}", passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
+                        sh "echo ${DOCKER_PASSWORD} | docker login -u ${DOCKER_USERNAME} --password-stdin"
+                    }
+                    
+                    // Use our script to build both images with the build number as tag
+                    sh "./scripts/build-images.sh -t ${DOCKER_TAG} --push"
                 }
             }
         }
         
-        stage('Kubernetes Deploy') {
+        stage('Deploy to Kubernetes') {
             steps {
                 echo 'Deploying to Kubernetes...'
-                // Wrap in a timeout to prevent hanging - increased timeout to 15 minutes
-                timeout(time: 15, unit: 'MINUTES') {
-                    sh '''
-                        # Get the latest image tag
-                        IMAGE_NAME="angreatharva/abstergo"
-                        TAG="${BUILD_NUMBER}"
-                        
-                        # Update the image in deployment YAML
-                        sed -i "s|image: ${IMAGE_NAME}:.*|image: ${IMAGE_NAME}:${TAG}|g" k8s/deployment.yaml
-                        
-                        # Check if kubectl is available and functioning
-                        if which kubectl > /dev/null; then
-                            echo "kubectl is installed, proceeding with deployment"
-                            
-                            # Check if minikube is running by querying API server
-                            if kubectl get nodes --request-timeout=10s &>/dev/null; then
-                                echo "Kubernetes is accessible, proceeding with deployment"
-                                
-                                # Deploy using the configured kubeconfig 
-                                echo "Deploying to Kubernetes cluster..."
-                                kubectl apply -f k8s/configmap.yaml || echo "No configmap found, skipping"
-                                kubectl apply -f k8s/deployment.yaml
-                                kubectl apply -f k8s/service.yaml
-                                
-                                # Display pods for debugging
-                                echo "Current pods:"
-                                kubectl get pods
-                                
-                                # Check pod status and logs for any errors
-                                echo "Checking pod status..."
-                                APP_POD=$(kubectl get pods -l app=abstergo-app -o name | head -n 1)
-                                if [ -n "$APP_POD" ]; then
-                                    echo "Pod details:"
-                                    kubectl describe $APP_POD
-                                    echo "Pod logs:"
-                                    kubectl logs $APP_POD --tail=50 || echo "No logs available yet"
-                                else
-                                    echo "No abstergo-app pods found yet"
-                                fi
-                                
-                                # Reduce replica count to 1 for faster deployment
-                                echo "Reducing replica count to 1 for faster deployment..."
-                                kubectl scale deployment abstergo-app --replicas=1
-                                
-                                # Verify deployment with a timeout - reduced to 5 minutes for initial check
-                                echo "Waiting for deployment to complete..."
-                                timeout 300s kubectl rollout status deployment/abstergo-app
-                                
-                                echo "Deployment completed successfully!"
-                            else
-                                echo "WARNING: Cannot connect to Kubernetes. Check configurations."
-                                echo "If running Minikube, ensure permissions are correct by running:"
-                                echo "  sudo ./fix_minikube_access.sh"
-                                echo "Skipping Kubernetes deployment, but Docker image was successfully built and pushed."
-                            fi
-                        else
-                            echo "WARNING: kubectl command not found or not in PATH"
-                            echo "Make sure kubectl is installed and in the PATH for the Jenkins user"
-                            echo "Skipping Kubernetes deployment, but Docker image was successfully built and pushed."
-                        fi
-                    '''
-                }
+                sh '''
+                    # Apply Kubernetes configurations
+                    kubectl apply -f k8s/configmap.yaml
+                    kubectl apply -f k8s/deployment.yaml
+                    kubectl apply -f k8s/service.yaml
+                    
+                    # Wait for deployment to be ready
+                    kubectl rollout status deployment/abstergo-app --timeout=300s
+                '''
             }
         }
         
-        stage('Deploy Monitoring') {
+        stage('Setup Monitoring') {
             steps {
                 echo 'Setting up monitoring...'
-                timeout(time: 10, unit: 'MINUTES') {
-                    sh '''
-                        # Check if kubectl is available and functioning
-                        if which kubectl > /dev/null && kubectl get nodes --request-timeout=10s &>/dev/null; then
-                            echo "Kubernetes is accessible, proceeding with monitoring setup"
-                            
-                            # Make monitoring scripts executable
-                            chmod +x k8s/monitoring/setup-monitoring.sh
-                            chmod +x k8s/monitoring/deploy-monitoring.sh
-                            
-                            # Change to monitoring directory
-                            cd k8s/monitoring
-                            
-                            # Deploy monitoring
-                            ./deploy-monitoring.sh
-                            
-                            echo "Monitoring setup completed!"
-                        else
-                            echo "WARNING: Cannot connect to Kubernetes. Skipping monitoring setup."
-                        fi
-                    '''
-                }
+                sh './scripts/monitoring.sh install'
+            }
+        }
+        
+        stage('Cleanup') {
+            steps {
+                // Remove local Docker images to save space
+                sh "docker rmi ${DOCKER_IMAGE}:${DOCKER_TAG} || true"
+                sh "docker rmi ${DOCKER_IMAGE}:latest || true"
+                sh "docker rmi angreatharva/abstergo-metrics:${DOCKER_TAG} || true"
+                sh "docker rmi angreatharva/abstergo-metrics:latest || true"
+                
+                // Logout from Docker Hub
+                sh "docker logout"
             }
         }
     }
@@ -188,22 +120,17 @@ pipeline {
     post {
         success {
             echo 'Pipeline completed successfully!'
-            echo 'Application has been deployed to Kubernetes.'
+            echo 'Application has been deployed to Kubernetes with monitoring enabled.'
         }
         failure {
             echo 'Pipeline failed. Please check the logs for details.'
         }
         always {
-            // Clean up Docker resources to avoid workspace clutter
-            sh '''
-                docker stop smoke-test || true
-                docker rm smoke-test || true
-            '''
-            // Clean workspace to prevent issues with future builds
+            echo 'Cleaning up workspace...'
             cleanWs(cleanWhenNotBuilt: false,
                     deleteDirs: true,
                     disableDeferredWipeout: true,
                     notFailBuild: true)
         }
     }
-}
+} 

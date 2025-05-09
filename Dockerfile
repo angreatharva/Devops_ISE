@@ -1,27 +1,31 @@
-FROM node:lts-alpine AS build
+# Build stage
+FROM node:18-alpine as build
+
 WORKDIR /app
-COPY package.json package-lock.json ./
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
 RUN npm install
+
+# Copy source code
 COPY . .
+
+# Build the application
 RUN npm run build
 
-FROM node:lts-alpine
-WORKDIR /app
-COPY --from=build /app/dist ./dist
-COPY --from=build /app/src/metrics.js /app/src/metrics.js
-COPY --from=build /app/src/metrics-server.js /app/src/metrics-server.js
-COPY package.json package-lock.json ./
-RUN npm install --production
-RUN npm install -g serve
+# Production stage
+FROM nginx:alpine
 
-EXPOSE 5173 9113
+# Copy built assets from build stage
+COPY --from=build /app/dist /usr/share/nginx/html
 
-# Create startup script (with explicit command and proper line endings)
-RUN echo '#!/bin/sh' > /app/start.sh && \
-    echo 'npm run metrics & serve -s dist -l 5173' >> /app/start.sh && \
-    chmod +x /app/start.sh
+# Copy nginx configuration
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Verify the script exists and is executable
-RUN ls -la /app/start.sh && cat /app/start.sh
+# Expose port 80
+EXPOSE 80
 
-CMD ["/bin/sh", "/app/start.sh"]
+# Start nginx
+CMD ["nginx", "-g", "daemon off;"]

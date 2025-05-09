@@ -1,0 +1,19 @@
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install only production dependencies
+RUN npm install --production
+
+# Copy metrics files
+COPY src/metrics.js src/metrics.js
+COPY src/metrics-server.js src/metrics-server.js
+
+# Expose metrics port
+EXPOSE 9113
+
+# Start metrics server
+CMD ["node", "src/metrics-server.js"] 

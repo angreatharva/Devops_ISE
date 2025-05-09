@@ -21,9 +21,9 @@ spec:
     spec:
       containers:
       - name: abstergo-app
-        image: angreatharva/abstergo:46
+        image: angreatharva/abstergo:47
         ports:
-        - containerPort: 5173
+        - containerPort: 80
         resources:
           limits:
             cpu: "0.5"
@@ -34,17 +34,36 @@ spec:
         livenessProbe:
           httpGet:
             path: /
-            port: 5173
-          initialDelaySeconds: 60
+            port: 80
+          initialDelaySeconds: 30
           periodSeconds: 20
           timeoutSeconds: 5
           failureThreshold: 3
         readinessProbe:
           httpGet:
             path: /
-            port: 5173
-          initialDelaySeconds: 15
+            port: 80
+          initialDelaySeconds: 10
           periodSeconds: 10
           timeoutSeconds: 5
           successThreshold: 1
+          failureThreshold: 3
+      - name: metrics-server
+        image: angreatharva/abstergo-metrics:47
+        ports:
+        - containerPort: 9113
+        resources:
+          limits:
+            cpu: "0.2"
+            memory: "256Mi"
+          requests:
+            cpu: "0.1"
+            memory: "128Mi"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 9113
+          initialDelaySeconds: 15
+          periodSeconds: 20
+          timeoutSeconds: 5
           failureThreshold: 3 
