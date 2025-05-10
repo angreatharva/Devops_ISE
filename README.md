@@ -12,15 +12,25 @@ A simple React application with Kubernetes deployment and monitoring setup.
 ├── k8s                       # Kubernetes manifests
 │   ├── configmap.yaml
 │   ├── deployment.yaml
-│   └── service.yaml
-├── monitoring                # Monitoring configuration
-│   ├── dashboard.yaml        # Grafana dashboard
+│   ├── service.yaml
 │   ├── servicemonitor.yaml   # Prometheus ServiceMonitor
-│   └── values.yaml           # Prometheus Operator values
+│   └── grafana-dashboard.yaml # Grafana dashboard
+├── monitoring                # Monitoring configuration
+│   ├── dashboard.yaml        # Grafana dashboard definition
+│   ├── servicemonitor.yaml   # Prometheus ServiceMonitor template
+│   ├── values.yaml           # Prometheus Operator values
+│   ├── minimal-monitoring-values.yaml # Resource-optimized values
+│   ├── alerts.yaml           # Prometheus alerting rules
+│   └── MONITORING_GUIDE.md   # Comprehensive monitoring guide
 ├── package.json              # Node.js dependencies
 ├── scripts                   # Utility scripts
 │   ├── deploy.sh             # Deployment script
 │   ├── monitoring.sh         # Monitoring script
+│   ├── install_minimal_monitoring.sh # Minimal resource monitoring
+│   ├── access_monitoring.sh  # Dashboard access script
+│   ├── generate_test_data.sh # Test traffic generator
+│   ├── check_monitoring_status.sh # Monitoring status checker
+│   ├── apply_alerts.sh       # Apply Prometheus alerts
 │   └── verify.sh             # Verification script
 ├── public                    # Static web assets
 └── src                       # Source code
@@ -63,20 +73,38 @@ A simple React application with Kubernetes deployment and monitoring setup.
 
 5. **Setup Monitoring**:
 
+   For standard environments:
    ```bash
    ./scripts/monitoring.sh install
+   ```
+   
+   For resource-constrained environments:
+   ```bash
+   ./scripts/install_minimal_monitoring.sh
    ```
 
 6. **Access the Dashboards**:
 
    ```bash
-   ./scripts/monitoring.sh access
+   ./scripts/access_monitoring.sh
    ```
 
 7. **Generate Test Data (Optional)**:
 
    ```bash
-   ./scripts/monitoring.sh generate
+   ./scripts/generate_test_data.sh
+   ```
+
+8. **Apply Alerting Rules (Optional)**:
+
+   ```bash
+   ./scripts/apply_alerts.sh
+   ```
+
+9. **Check Monitoring Status**:
+
+   ```bash
+   ./scripts/check_monitoring_status.sh
    ```
 
 ## Key Features
@@ -86,6 +114,8 @@ A simple React application with Kubernetes deployment and monitoring setup.
 - Visualization with Grafana
 - Resource-efficient monitoring setup
 - Kubernetes deployment
+- Prometheus alerting rules
+- Comprehensive monitoring guide
 
 ## Monitoring
 
@@ -95,6 +125,38 @@ The application exposes Prometheus metrics at the `/metrics` endpoint on port 91
 - Grafana for visualization
 - Custom dashboard for application metrics
 - ServiceMonitor for automatic metrics scraping
+- Alerting rules for critical metrics
+- Resource-optimized configurations for limited environments
+
+For detailed information about the monitoring setup, see [monitoring/MONITORING_GUIDE.md](monitoring/MONITORING_GUIDE.md).
+
+## Metrics Collected
+
+The application collects the following metrics:
+
+- `http_requests_total` - Total number of HTTP requests
+- `http_request_duration_seconds` - Duration of HTTP requests
+- `frontend_errors_total` - Total number of frontend errors
+- `api_errors_total` - Total number of API errors
+- `page_views_total` - Total number of page views
+- `user_interactions_total` - Total number of user interactions
+
+## Alerts
+
+The monitoring setup includes the following alerts:
+
+- `AbstergoHighErrorRate` - Triggers when the error rate exceeds 5%
+- `AbstergoHighResponseTime` - Triggers when response time exceeds thresholds
+- `AbstergoContainerRestarting` - Triggers when containers restart unexpectedly
+- `AbstergoHighMemoryUsage` - Triggers when memory usage is too high
+
+## Resource Optimization
+
+The monitoring stack is configured with minimal resource requirements to run on resource-constrained environments:
+
+- Prometheus: 100Mi memory, 50m CPU
+- Grafana: 50Mi memory, 50m CPU
+- Prometheus Operator: 50Mi memory, 25m CPU
 
 ## Cleanup
 

@@ -1,0 +1,47 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: abstergo-alerts
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app: abstergo-app
+spec:
+  groups:
+  - name: abstergo.rules
+    rules:
+    - alert: AbstergoHighErrorRate
+      expr: sum(rate(api_errors_total[5m])) / sum(rate(http_requests_total[5m])) > 0.05
+      for: 2m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High error rate detected"
+        description: "Abstergo application error rate is above 5% for more than 2 minutes"
+    
+    - alert: AbstergoHighResponseTime
+      expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 3
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Slow response times detected"
+        description: "95th percentile of response time is above 3 seconds for more than 5 minutes"
+    
+    - alert: AbstergoContainerRestarting
+      expr: increase(kube_pod_container_status_restarts_total{container=~"abstergo-app|metrics-server"}[15m]) > 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Container restarting"
+        description: "Container {{ $labels.container }} has restarted in the last 15 minutes"
+    
+    - alert: AbstergoHighMemoryUsage
+      expr: container_memory_usage_bytes{container=~"abstergo-app|metrics-server"} / container_spec_memory_limit_bytes{container=~"abstergo-app|metrics-server"} > 0.85
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High memory usage"
+        description: "Container {{ $labels.container }} is using more than 85% of its memory limit" 

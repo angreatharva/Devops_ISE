@@ -1,75 +1,184 @@
 #!/bin/bash
-# Monitoring Status Checker - Designed for low-resource environments
-# This script checks the status of monitoring without starting Minikube
+# Script to check the status of the monitoring setup
 
-echo "=== Abstergo Monitoring Status Checker ==="
+echo "=== Abstergo Monitoring Status Check ==="
+echo "Checking all components of the monitoring stack..."
+echo ""
 
-# First check if minikube is running without attempting to start it
-MINIKUBE_STATUS=$(minikube status -f '{{.Host}}' 2>/dev/null)
-if [ "$MINIKUBE_STATUS" != "Running" ]; then
-    echo "NOTICE: Minikube is not running."
-    echo "Your monitoring stack is installed but currently inactive because Minikube is stopped."
-    echo ""
-    echo "If you want to access monitoring, you would need to:"
-    echo "1. Start Minikube: minikube start"
-    echo "2. Wait for all pods to become ready (this may take a few minutes)"
-    echo "3. Run: ./scripts/access_monitoring.sh"
-    echo ""
-    echo "IMPORTANT: Starting Minikube requires significant resources."
-    echo "Consider closing other applications before starting Minikube."
-    echo "Minimum recommended: 2GB RAM and 2 CPU cores available."
-    echo ""
-    echo "Your application metrics will be preserved and visible in Grafana"
-    echo "once you start Minikube again."
-    exit 0
-fi
-
-# If Minikube is running, check monitoring status
-echo "Minikube is running. Checking monitoring status..."
-
-# Check if monitoring namespace exists
-if ! kubectl get namespace monitoring &>/dev/null; then
-    echo "Monitoring namespace not found. Monitoring stack not installed."
-    echo "To install, run: ./scripts/install_minimal_monitoring.sh"
+# Check if kubectl is available
+if ! command -v kubectl &> /dev/null; then
+    echo "ERROR: kubectl not found. Please install kubectl."
     exit 1
 fi
 
-# Check Prometheus and Grafana pods
-PROM_PODS=$(kubectl get pods -n monitoring -l app=prometheus -o name 2>/dev/null)
-GRAF_PODS=$(kubectl get pods -n monitoring -l app.kubernetes.io/name=grafana -o name 2>/dev/null)
-
-if [ -z "$PROM_PODS" ] || [ -z "$GRAF_PODS" ]; then
-    echo "WARNING: Some monitoring components are missing."
-    echo "To reinstall, run: ./scripts/install_minimal_monitoring.sh"
-else
-    # Check pod status
-    READY_COUNT=$(kubectl get pods -n monitoring -o jsonpath='{.items[?(@.status.phase=="Running")].metadata.name}' | wc -w)
-    TOTAL_PODS=$(kubectl get pods -n monitoring -o name | wc -w)
-    
-    echo "Monitoring pods: $READY_COUNT/$TOTAL_PODS running"
-    
-    if [ "$READY_COUNT" -lt "$TOTAL_PODS" ]; then
-        echo "WARNING: Not all monitoring pods are running."
-        echo "This may affect monitoring functionality."
-    else
-        echo "All monitoring pods are running."
-        echo "To access the dashboards, run: ./scripts/access_monitoring.sh"
-    fi
+# Check if Kubernetes is accessible
+echo "Checking Kubernetes connection..."
+if ! kubectl cluster-info &> /dev/null; then
+    echo "ERROR: Cannot connect to Kubernetes cluster."
+    echo "Please check your kubeconfig file or cluster status."
+    exit 1
 fi
 
-# Get Grafana credentials if available
-if kubectl get secret -n monitoring prometheus-grafana &>/dev/null; then
-    GRAFANA_USER="admin"
-    GRAFANA_PASSWORD=$(kubectl get secret -n monitoring prometheus-grafana -o jsonpath="{.data.admin-password}" | base64 --decode)
+# Check if monitoring namespace exists
+if ! kubectl get namespace monitoring &> /dev/null; then
+    echo "ERROR: Monitoring namespace not found."
+    echo "Run scripts/install_minimal_monitoring.sh to install monitoring"
+    exit 1
+fi
+
+# Function to check component status
+check_component() {
+    local component=$1
+    local namespace=$2
+    local label=$3
     
-    echo ""
-    echo "=== Grafana Access Information ==="
-    echo "URL (when port-forwarded): http://localhost:3000"
-    echo "Username: $GRAFANA_USER"
-    echo "Password: $GRAFANA_PASSWORD"
+    echo "Checking $component..."
+    
+    # Check if pods exist
+    POD_COUNT=$(kubectl get pods -n $namespace -l $label --no-headers 2>/dev/null | wc -l)
+    
+    if [ "$POD_COUNT" -eq 0 ]; then
+        echo "  - Status: NOT INSTALLED"
+        return 1
+    fi
+    
+    # Check pod status
+    RUNNING_COUNT=$(kubectl get pods -n $namespace -l $label -o jsonpath='{range .items[*]}{.status.phase}{"\n"}{end}' | grep -c "Running")
+    
+    if [ "$RUNNING_COUNT" -eq "$POD_COUNT" ]; then
+        echo "  - Status: RUNNING ($RUNNING_COUNT/$POD_COUNT pods)"
+        
+        # Check resource usage if possible
+        if command -v kubectl &> /dev/null; then
+            echo "  - Resources:"
+            kubectl top pods -n $namespace -l $label 2>/dev/null || echo "    (Resource metrics not available)"
+        fi
+        
+        return 0
+    else
+        echo "  - Status: PARTIALLY RUNNING ($RUNNING_COUNT/$POD_COUNT pods)"
+        
+        # Show problematic pods
+        echo "  - Problematic pods:"
+        kubectl get pods -n $namespace -l $label -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.status.phase}{"\n"}{end}' | grep -v "Running"
+        
+        return 2
+    fi
+}
+
+# Check Prometheus
+echo "=== Prometheus ==="
+check_component "Prometheus" "monitoring" "app=prometheus"
+PROMETHEUS_STATUS=$?
+
+# Check Grafana
+echo ""
+echo "=== Grafana ==="
+check_component "Grafana" "monitoring" "app.kubernetes.io/name=grafana"
+GRAFANA_STATUS=$?
+
+# Check ServiceMonitor
+echo ""
+echo "=== ServiceMonitor ==="
+if kubectl get servicemonitor abstergo-app-monitor -n monitoring &> /dev/null; then
+    echo "  - Status: CONFIGURED"
+    
+    # Check if ServiceMonitor is selecting the right service
+    SELECTOR=$(kubectl get servicemonitor abstergo-app-monitor -n monitoring -o jsonpath='{.spec.selector.matchLabels}')
+    echo "  - Selector: $SELECTOR"
+    
+    # Check if any services match this selector
+    MATCHING_SERVICES=$(kubectl get services --all-namespaces -l app=abstergo-app -o name 2>/dev/null | wc -l)
+    if [ "$MATCHING_SERVICES" -gt 0 ]; then
+        echo "  - Matching services: $MATCHING_SERVICES"
+    else
+        echo "  - WARNING: No services match the ServiceMonitor selector"
+    fi
+else
+    echo "  - Status: NOT CONFIGURED"
+    echo "  - Run: kubectl apply -f ../k8s/servicemonitor.yaml"
+fi
+
+# Check Abstergo application
+echo ""
+echo "=== Abstergo Application ==="
+if kubectl get deployment abstergo-app &> /dev/null; then
+    READY=$(kubectl get deployment abstergo-app -o jsonpath='{.status.readyReplicas}')
+    TOTAL=$(kubectl get deployment abstergo-app -o jsonpath='{.status.replicas}')
+    
+    if [ "$READY" -eq "$TOTAL" ]; then
+        echo "  - Status: RUNNING ($READY/$TOTAL replicas ready)"
+    else
+        echo "  - Status: PARTIALLY RUNNING ($READY/$TOTAL replicas ready)"
+    fi
+    
+    # Check metrics endpoint
+    echo "  - Checking metrics endpoint..."
+    METRICS_PORT=$(kubectl get svc abstergo-service -o jsonpath='{.spec.ports[?(@.name=="metrics")].port}' 2>/dev/null)
+    
+    if [ -n "$METRICS_PORT" ]; then
+        echo "  - Metrics port: $METRICS_PORT"
+        
+        # Try to port-forward and check metrics
+        echo "  - Attempting to check metrics availability..."
+        kubectl port-forward svc/abstergo-service $METRICS_PORT:$METRICS_PORT > /dev/null 2>&1 &
+        PF_PID=$!
+        
+        # Give port-forwarding time to establish
+        sleep 3
+        
+        # Check if metrics are accessible
+        if curl -s localhost:$METRICS_PORT/metrics > /dev/null; then
+            echo "  - Metrics endpoint: ACCESSIBLE"
+        else
+            echo "  - Metrics endpoint: NOT ACCESSIBLE"
+        fi
+        
+        # Kill port-forwarding
+        kill $PF_PID 2>/dev/null
+    else
+        echo "  - Metrics port: NOT CONFIGURED"
+    fi
+else
+    echo "  - Status: NOT RUNNING"
+fi
+
+# Check alerts
+echo ""
+echo "=== Prometheus Alerts ==="
+if kubectl get prometheusrules abstergo-alerts -n monitoring &> /dev/null; then
+    echo "  - Status: CONFIGURED"
+    
+    # Count alerts
+    ALERT_COUNT=$(kubectl get prometheusrules abstergo-alerts -n monitoring -o jsonpath='{.spec.groups[0].rules[*].alert}' | wc -w)
+    echo "  - Configured alerts: $ALERT_COUNT"
+else
+    echo "  - Status: NOT CONFIGURED"
+    echo "  - Run: ./scripts/apply_alerts.sh"
+fi
+
+# Summary
+echo ""
+echo "=== Summary ==="
+if [ $PROMETHEUS_STATUS -eq 0 ] && [ $GRAFANA_STATUS -eq 0 ]; then
+    echo "Monitoring stack is running properly."
+    
+    # Get access information
+    GRAFANA_USER="admin"
+    GRAFANA_PASSWORD=$(kubectl get secret -n monitoring prometheus-grafana -o jsonpath="{.data.admin-password}" | base64 --decode 2>/dev/null)
+    
+    if [ -n "$GRAFANA_PASSWORD" ]; then
+        echo ""
+        echo "=== Access Information ==="
+        echo "To access dashboards, run: ./scripts/access_monitoring.sh"
+        echo ""
+        echo "Grafana credentials:"
+        echo "  Username: $GRAFANA_USER"
+        echo "  Password: $GRAFANA_PASSWORD"
+    fi
+else
+    echo "Monitoring stack has issues. Please check the details above."
 fi
 
 echo ""
-echo "Note: The monitoring stack is designed to use minimal resources."
-echo "However, if your system is still resource-constrained, you can"
-echo "temporarily disable monitoring by stopping Minikube." 
+echo "For more information, see monitoring/MONITORING_GUIDE.md" 
