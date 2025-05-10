@@ -17,7 +17,6 @@ export const trackApiRequest = async (method, url, options = {}) => {
     const duration = (endTime - startTime) / 1000;
     
     const path = new URL(url).pathname;
-    const statusCode = response.status.toString();
     
     // Record metrics
     if (!metrics.httpRequests[path]) {
