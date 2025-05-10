@@ -116,7 +116,7 @@ pipeline {
                         exit 1
                     fi
                     echo "Kubernetes is accessible."
-                    
+                            
                     # Create monitoring namespace if it doesn't exist
                     if ! kubectl get namespace monitoring > /dev/null 2>&1; then
                         echo "Creating monitoring namespace..."
