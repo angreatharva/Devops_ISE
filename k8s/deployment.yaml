@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
       - name: abstergo-app
-        image: angreatharva/abstergo:63
+        image: angreatharva/abstergo:latest
         ports:
         - containerPort: 80
         - containerPort: 9113
@@ -45,7 +45,7 @@ spec:
           initialDelaySeconds: 15
           periodSeconds: 20
       - name: metrics-server
-        image: angreatharva/abstergo-metrics:59
+        image: angreatharva/abstergo-metrics:latest
         ports:
         - containerPort: 9113
         resources:

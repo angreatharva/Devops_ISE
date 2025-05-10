@@ -1,0 +1,65 @@
+variables:
+  DOCKER_IMAGE: angreatharva/abstergo
+  DOCKER_METRICS_IMAGE: angreatharva/abstergo-metrics
+
+stages:
+  - build
+  - deploy
+
+build:
+  stage: build
+  image: docker:latest
+  services:
+    - docker:dind
+  variables:
+    DOCKER_TLS_CERTDIR: "/certs"
+  before_script:
+    - docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
+  script:
+    # Get the latest build number from Docker Hub
+    - export BUILD_NUMBER=$(curl -s "https://registry.hub.docker.com/v2/repositories/${DOCKER_IMAGE}/tags?page_size=100" | grep -o '"name":"[0-9]*"' | grep -o '[0-9]*' | sort -n | tail -n 1)
+    - export NEW_BUILD_NUMBER=$((BUILD_NUMBER + 1))
+    - echo "Building image with version: ${NEW_BUILD_NUMBER}"
+    # Build and push main application
+    - docker build -t ${DOCKER_IMAGE}:${NEW_BUILD_NUMBER} -t ${DOCKER_IMAGE}:latest .
+    - docker push ${DOCKER_IMAGE}:${NEW_BUILD_NUMBER}
+    - docker push ${DOCKER_IMAGE}:latest
+    # Build and push metrics server
+    - docker build -t ${DOCKER_METRICS_IMAGE}:${NEW_BUILD_NUMBER} -t ${DOCKER_METRICS_IMAGE}:latest -f Dockerfile.metrics .
+    - docker push ${DOCKER_METRICS_IMAGE}:${NEW_BUILD_NUMBER}
+    - docker push ${DOCKER_METRICS_IMAGE}:latest
+    # Update deployment.yaml with new version
+    - sed -i "s|image: ${DOCKER_IMAGE}:[0-9]*|image: ${DOCKER_IMAGE}:${NEW_BUILD_NUMBER}|g" k8s/deployment.yaml
+    - sed -i "s|image: ${DOCKER_METRICS_IMAGE}:[0-9]*|image: ${DOCKER_METRICS_IMAGE}:${NEW_BUILD_NUMBER}|g" k8s/deployment.yaml
+    # Commit and push the updated deployment.yaml
+    - git config --global user.email "gitlab-ci@example.com"
+    - git config --global user.name "GitLab CI"
+    - git add k8s/deployment.yaml
+    - git commit -m "Update image version to ${NEW_BUILD_NUMBER}"
+    - git push https://oauth2:${GITLAB_TOKEN}@gitlab.com/${CI_PROJECT_PATH}.git HEAD:${CI_COMMIT_REF_NAME}
+  only:
+    - main
+
+deploy:
+  stage: deploy
+  image: bitnami/kubectl:latest
+  script:
+    # Deploy application
+    - kubectl apply -f k8s/deployment.yaml
+    - kubectl apply -f k8s/service.yaml
+    
+    # Setup monitoring (only if not already installed)
+    - |
+      if ! kubectl get namespace monitoring >/dev/null 2>&1; then
+        echo "Creating monitoring namespace..."
+        kubectl create namespace monitoring
+      fi
+    
+    # Apply ServiceMonitor and Dashboard (these are idempotent)
+    - kubectl apply -f k8s/servicemonitor.yaml
+    - kubectl apply -f k8s/grafana-dashboard.yaml
+    
+    # Verify deployment
+    - kubectl rollout status deployment/abstergo-app --timeout=300s
+  only:
+    - main 

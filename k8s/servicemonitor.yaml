@@ -4,7 +4,8 @@ metadata:
   name: abstergo-app-monitor
   namespace: monitoring
   labels:
-    release: prometheus
+    release: monitoring
+    app: abstergo-app
 spec:
   selector:
     matchLabels:

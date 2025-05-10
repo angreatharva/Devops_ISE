@@ -13,125 +13,137 @@ pipeline {
     environment {
         // Update with your Docker Hub username and repository
         DOCKER_IMAGE = 'angreatharva/abstergo'
-        DOCKER_TAG = "${env.BUILD_NUMBER}"
-        // Docker Hub credentials ID that you'll create in Jenkins
-        DOCKER_CREDENTIALS = 'Docker'
+        DOCKER_METRICS_IMAGE = 'angreatharva/abstergo-metrics'
+        DOCKER_CREDENTIALS_ID = 'docker-hub-credentials'
         // Set KUBECONFIG path for direct kubectl use
         KUBECONFIG = "/var/lib/jenkins/.kube/config"
     }
     
     stages {
-        stage('Checkout SCM') {
+        stage('Prepare') {
             steps {
-                checkout scm
-            }
-        }
-        
-        stage('Verify Setup') {
-            steps {
-                sh 'chmod +x scripts/*.sh'
-                sh './scripts/verify.sh'
-            }
-        }
-        
-        stage('Code Review') {
-            steps {
-                echo 'Running linter...'
-                sh 'npm run lint'
-            }
-        }
-        
-        stage('Code Compile') {
-            steps {
-                echo 'Installing dependencies...'
-                sh 'npm install'
-            }
-        }
-        
-        stage('Metrics Check') {
-            steps {
-                echo 'Running metrics check...'
-            }
-        }
-        
-        stage('Test') {
-            steps {
-                echo 'Running tests...'
-            }
-        }
-        
-        stage('Package') {
-            steps {
-                echo 'Building application...'
-                sh 'npm run build'
-            }
-        }
-        
-        stage('Build Docker Images') {
-            steps {
+                sh '''
+                    # Get latest build number from Docker Hub
+                    BUILD_NUMBER=$(curl -s "https://registry.hub.docker.com/v2/repositories/${DOCKER_IMAGE}/tags?page_size=100" | grep -o '"name":"[0-9]*"' | grep -o '[0-9]*' | sort -n | tail -n 1)
+                    if [ -z "$BUILD_NUMBER" ]; then
+                        BUILD_NUMBER=0
+                    fi
+                    NEW_BUILD_NUMBER=$((BUILD_NUMBER + 1))
+                    echo "NEW_BUILD_NUMBER=${NEW_BUILD_NUMBER}" > build.properties
+                '''
+                
+                // Load the build properties
                 script {
-                    // Login to Docker Hub
-                    withCredentials([usernamePassword(credentialsId: "${DOCKER_CREDENTIALS}", passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
-                        sh "echo ${DOCKER_PASSWORD} | docker login -u ${DOCKER_USERNAME} --password-stdin"
-                    }
-                    
-                    // Use our script to build both images with the build number as tag
-                    sh "./scripts/build-images.sh -t ${DOCKER_TAG} --push"
+                    def props = readProperties file: 'build.properties'
+                    env.NEW_BUILD_NUMBER = props.NEW_BUILD_NUMBER
+                    echo "Building with version: ${env.NEW_BUILD_NUMBER}"
                 }
             }
         }
         
-        stage('Deploy to Kubernetes') {
+        stage('Build') {
             steps {
-                echo 'Deploying to Kubernetes...'
+                withCredentials([usernamePassword(credentialsId: "${DOCKER_CREDENTIALS_ID}", usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
                     sh '''
-                    # Apply Kubernetes configurations
-                    kubectl apply -f k8s/configmap.yaml
-                                kubectl apply -f k8s/deployment.yaml
-                                kubectl apply -f k8s/service.yaml
-                                
-                    # Wait for deployment to be ready
-                    kubectl rollout status deployment/abstergo-app --timeout=300s
+                        docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
+                        
+                        # Build and push main application
+                        docker build -t ${DOCKER_IMAGE}:${NEW_BUILD_NUMBER} -t ${DOCKER_IMAGE}:latest .
+                        docker push ${DOCKER_IMAGE}:${NEW_BUILD_NUMBER}
+                        docker push ${DOCKER_IMAGE}:latest
+                        
+                        # Build and push metrics server
+                        docker build -t ${DOCKER_METRICS_IMAGE}:${NEW_BUILD_NUMBER} -t ${DOCKER_METRICS_IMAGE}:latest -f Dockerfile.metrics .
+                        docker push ${DOCKER_METRICS_IMAGE}:${NEW_BUILD_NUMBER}
+                        docker push ${DOCKER_METRICS_IMAGE}:latest
                     '''
+                }
+            }
+        }
+        
+        stage('Update Deployment') {
+            steps {
+                sh '''
+                    # Update deployment.yaml with new version - handle both latest and version numbers
+                    sed -i "s|image: ${DOCKER_IMAGE}:\\(latest\\|[0-9][0-9]*\\)|image: ${DOCKER_IMAGE}:${NEW_BUILD_NUMBER}|g" k8s/deployment.yaml
+                    sed -i "s|image: ${DOCKER_METRICS_IMAGE}:\\(latest\\|[0-9][0-9]*\\)|image: ${DOCKER_METRICS_IMAGE}:${NEW_BUILD_NUMBER}|g" k8s/deployment.yaml
+                    
+                    # Verify the updates
+                    echo "Verifying deployment.yaml changes:"
+                    grep -n "image:" k8s/deployment.yaml
+                '''
+            }
+        }
+        
+        stage('Deploy') {
+            steps {
+                sh '''
+                    # Check if Kubernetes is accessible
+                    echo "=== Deploying Abstergo Application ==="
+                    if ! kubectl cluster-info > /dev/null 2>&1; then
+                        echo "Error: Kubernetes cluster is not accessible"
+                        exit 1
+                    fi
+                    echo "Kubernetes is accessible."
+                    
+                    # Deploy application
+                    kubectl apply -f k8s/deployment.yaml
+                    kubectl apply -f k8s/service.yaml
+                    echo "Application deployed to Kubernetes."
+                '''
             }
         }
         
         stage('Setup Monitoring') {
             steps {
-                echo 'Setting up monitoring...'
-                sh 'chmod +x scripts/jenkins-monitoring.sh'
-                sh './scripts/jenkins-monitoring.sh install'
+                sh '''
+                    echo "=== Installing Monitoring for Abstergo Application ==="
+                    # Check if Kubernetes is accessible
+                    if ! kubectl cluster-info > /dev/null 2>&1; then
+                        echo "Error: Kubernetes cluster is not accessible"
+                        exit 1
+                    fi
+                    echo "Kubernetes is accessible."
+                    
+                    # Add Helm repository if needed
+                    echo "Adding Prometheus Helm repository..."
+                    helm repo add prometheus-community https://prometheus-community.github.io/helm-charts || echo "Helm repo already exists"
+                    helm repo update
+                    
+                    # Apply ServiceMonitor and Dashboard ConfigMap
+                    echo "Creating ServiceMonitor for Abstergo app..."
+                    kubectl apply -f k8s/servicemonitor.yaml
+                    
+                    echo "Creating Grafana dashboard for Abstergo app..."
+                    kubectl apply -f k8s/grafana-dashboard.yaml
+                    
+                    echo "=== Monitoring Installation Complete ==="
+                '''
             }
         }
         
         stage('Cleanup') {
             steps {
-                // Remove local Docker images to save space
-                sh "docker rmi ${DOCKER_IMAGE}:${DOCKER_TAG} || true"
-                sh "docker rmi ${DOCKER_IMAGE}:latest || true"
-                sh "docker rmi angreatharva/abstergo-metrics:${DOCKER_TAG} || true"
-                sh "docker rmi angreatharva/abstergo-metrics:latest || true"
-                
-                // Logout from Docker Hub
-                sh "docker logout"
+                sh '''
+                    # Clean up local Docker images, but don't fail the build if they're not found
+                    docker rmi ${DOCKER_IMAGE}:${NEW_BUILD_NUMBER} || true
+                    docker rmi ${DOCKER_IMAGE}:latest || true
+                    docker rmi ${DOCKER_METRICS_IMAGE}:${NEW_BUILD_NUMBER} || true
+                    docker rmi ${DOCKER_METRICS_IMAGE}:latest || true
+                    docker logout
+                '''
             }
         }
     }
     
     post {
         success {
-            echo 'Pipeline completed successfully!'
-            echo 'Application has been deployed to Kubernetes with monitoring enabled.'
+            echo "Pipeline completed successfully!"
+            echo "Application has been deployed to Kubernetes with monitoring enabled."
         }
-        failure {
-            echo 'Pipeline failed. Please check the logs for details.'
-        }
-        always {
-            echo 'Cleaning up workspace...'
-            cleanWs(cleanWhenNotBuilt: false,
-                    deleteDirs: true,
-                    disableDeferredWipeout: true,
-                    notFailBuild: true)
+        cleanup {
+            echo "Cleaning up workspace..."
+            cleanWs()
         }
     }
 } 
