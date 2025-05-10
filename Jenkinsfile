@@ -84,15 +84,15 @@ pipeline {
         stage('Deploy to Kubernetes') {
             steps {
                 echo 'Deploying to Kubernetes...'
-                sh '''
+                    sh '''
                     # Apply Kubernetes configurations
                     kubectl apply -f k8s/configmap.yaml
-                    kubectl apply -f k8s/deployment.yaml
-                    kubectl apply -f k8s/service.yaml
-                    
+                                kubectl apply -f k8s/deployment.yaml
+                                kubectl apply -f k8s/service.yaml
+                                
                     # Wait for deployment to be ready
                     kubectl rollout status deployment/abstergo-app --timeout=300s
-                '''
+                    '''
             }
         }
         

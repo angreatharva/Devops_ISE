@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
       - name: abstergo-app
-        image: angreatharva/abstergo:47
+        image: angreatharva/abstergo:59
         ports:
         - containerPort: 80
         resources:
@@ -49,7 +49,7 @@ spec:
           successThreshold: 1
           failureThreshold: 3
       - name: metrics-server
-        image: angreatharva/abstergo-metrics:47
+        image: angreatharva/abstergo-metrics:59
         ports:
         - containerPort: 9113
         resources:
