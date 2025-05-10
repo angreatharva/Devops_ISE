@@ -75,11 +75,8 @@ pipeline {
         stage('Update Deployment') {
             steps {
                 sh '''
-                    # Update deployment.yaml with new version - handle both latest and version numbers
-                    sed -i "s|image: ${DOCKER_IMAGE}:\\(latest\\|[0-9][0-9]*\\)|image: ${DOCKER_IMAGE}:${NEW_BUILD_NUMBER}|g" k8s/deployment.yaml
-                    sed -i "s|image: ${DOCKER_METRICS_IMAGE}:\\(latest\\|[0-9][0-9]*\\)|image: ${DOCKER_METRICS_IMAGE}:${NEW_BUILD_NUMBER}|g" k8s/deployment.yaml
-                    
-                    # Verify the updates
+                    sed -i "s|image: angreatharva/abstergo:[0-9]\\+|image: angreatharva/abstergo:${NEW_BUILD_NUMBER}|g" k8s/deployment.yaml
+                    sed -i "s|image: angreatharva/abstergo-metrics:[0-9]\\+|image: angreatharva/abstergo-metrics:${NEW_BUILD_NUMBER}|g" k8s/deployment.yaml
                     echo "Verifying deployment.yaml changes:"
                     grep -n "image:" k8s/deployment.yaml
                 '''

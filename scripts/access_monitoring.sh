@@ -74,4 +74,71 @@ cleanup() {
 trap cleanup INT
 
 # Wait for user to press Ctrl+C
-wait 
+wait
+
+# Script to access monitoring dashboards for Abstergo application
+
+echo "=== Abstergo Monitoring Access Tool ==="
+
+# First check if minikube is running
+if ! minikube status &>/dev/null; then
+    echo "ERROR: Minikube is not running. Please start it with: minikube start"
+    exit 1
+fi
+
+# Check if monitoring namespace exists
+if ! kubectl get namespace monitoring &>/dev/null; then
+    echo "ERROR: Monitoring namespace not found. Has monitoring been deployed?"
+    exit 1
+fi
+
+# Check if Grafana pod is ready
+echo "Checking if Grafana is ready..."
+ATTEMPTS=0
+MAX_ATTEMPTS=30
+
+while [ $ATTEMPTS -lt $MAX_ATTEMPTS ]; do
+    READY_COUNT=$(kubectl get pods -n monitoring -l "app.kubernetes.io/name=grafana" -o jsonpath="{.items[0].status.containerStatuses[?(@.ready==true)].ready}" | wc -w)
+    TOTAL_CONTAINERS=$(kubectl get pods -n monitoring -l "app.kubernetes.io/name=grafana" -o jsonpath="{.items[0].spec.containers[*].name}" | wc -w)
+    
+    if [ "$READY_COUNT" -eq "$TOTAL_CONTAINERS" ]; then
+        echo "Grafana is ready!"
+        break
+    else
+        echo "Waiting for Grafana to be ready... ($READY_COUNT/$TOTAL_CONTAINERS containers ready)"
+        ATTEMPTS=$((ATTEMPTS+1))
+        sleep 5
+    fi
+    
+    if [ $ATTEMPTS -eq $MAX_ATTEMPTS ]; then
+        echo "WARNING: Grafana is not fully ready, but we'll try to proceed anyway."
+    fi
+done
+
+# Get Grafana credentials
+GRAFANA_USER="admin"
+GRAFANA_PASSWORD=$(kubectl get secret -n monitoring prometheus-grafana -o jsonpath="{.data.admin-password}" | base64 --decode)
+
+echo "=== Grafana Access Information ==="
+echo "URL: http://localhost:3000"
+echo "Username: $GRAFANA_USER"
+echo "Password: $GRAFANA_PASSWORD"
+
+# Get application access
+APP_NODE_PORT=$(kubectl get svc abstergo-service -o jsonpath="{.spec.ports[0].nodePort}")
+MINIKUBE_IP=$(minikube ip)
+echo ""
+echo "=== Application Access Information ==="
+echo "Application URL: http://$MINIKUBE_IP:$APP_NODE_PORT"
+
+# Start port-forwarding for Grafana
+echo ""
+echo "Starting port-forwarding for Grafana..."
+echo "Press Ctrl+C to stop port-forwarding when done."
+echo ""
+echo "To test application metrics, run this in another terminal:"
+echo "for i in {1..100}; do curl http://$MINIKUBE_IP:$APP_NODE_PORT; sleep 0.5; done"
+echo ""
+
+# Use the correct service name based on your Helm release
+kubectl port-forward -n monitoring svc/prometheus-grafana 3000:80 

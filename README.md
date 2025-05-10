@@ -148,3 +148,83 @@ kubectl port-forward -n monitoring svc/prometheus-grafana 3000:80
 
 Then open http://localhost:3000 in your browser (default credentials: admin/prom-operator).
 
+## Abstergo DevOps Project
+
+This repository contains a web application with Kubernetes deployment configurations and monitoring setup using Prometheus and Grafana.
+
+### Recent Changes and Improvements
+
+- Fixed Jenkins pipeline to properly update image versions in deployment files
+- Added script to clean up old Docker images to free up system resources
+- Improved monitoring access script to properly wait for Grafana to be ready
+- Fixed deployment file to use the correct image versions
+- Added test data generator script to visualize metrics in Grafana
+- Created manual deployment script for local testing
+
+### System Requirements
+
+- Docker
+- Kubernetes (minikube)
+- Helm
+- 2GB+ RAM available for minikube
+- kubectl
+
+### Available Scripts
+
+- `scripts/verify_pipeline.sh` - Verifies that all required files are present and configured correctly
+- `scripts/access_monitoring.sh` - Provides access to Grafana dashboard with proper credentials
+- `scripts/generate_test_data.sh` - Generates test traffic to visualize metrics
+- `scripts/cleanup_docker_images.sh` - Cleans up old Docker images to free up system resources
+- `scripts/manual_deploy.sh` - Deploys the application locally without requiring Jenkins
+
+### How to Use
+
+1. Verify your pipeline setup:
+   ```
+   bash scripts/verify_pipeline.sh
+   ```
+
+2. For manual deployment (without Jenkins):
+   ```
+   bash scripts/manual_deploy.sh
+   ```
+
+3. Access the monitoring dashboard:
+   ```
+   bash scripts/access_monitoring.sh
+   ```
+
+4. Generate test traffic:
+   ```
+   bash scripts/generate_test_data.sh
+   ```
+
+5. Clean up Docker images:
+   ```
+   bash scripts/cleanup_docker_images.sh
+   ```
+
+### Troubleshooting Issues
+
+#### External IP stays in "pending" state
+This is normal behavior in minikube. For minikube, you should access services using:
+```
+minikube service abstergo-service --url
+```
+
+#### Cannot access Grafana
+Make sure to use the correct service name for port forwarding:
+```
+kubectl port-forward -n monitoring svc/prometheus-grafana 3000:80
+```
+
+#### Container restarts or OOM errors
+Reduce resource requirements in the deployment:
+```
+kubectl edit deployment abstergo-app
+```
+And adjust the resource limits and requests.
+
+#### Jenkins pipeline fails to update image versions
+This has been fixed in the latest version of the Jenkinsfile. The sed command now correctly updates the version numbers.
+
