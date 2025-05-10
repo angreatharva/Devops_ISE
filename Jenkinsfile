@@ -98,9 +98,13 @@ pipeline {
                     echo "Kubernetes is accessible."
                     
                     # Deploy application
-                    kubectl apply -f k8s/deployment.yaml
-                    kubectl apply -f k8s/service.yaml
+                    kubectl apply -f k8s/deployment.yaml || exit 1
+                    kubectl apply -f k8s/service.yaml || exit 1
                     echo "Application deployed to Kubernetes."
+                    
+                    # Wait for deployment to be ready
+                    echo "Waiting for deployment to be ready..."
+                    kubectl rollout status deployment/abstergo-app --timeout=180s || true
                 '''
             }
         }
@@ -116,17 +120,40 @@ pipeline {
                     fi
                     echo "Kubernetes is accessible."
                     
+                    # Create monitoring namespace if it doesn't exist
+                    if ! kubectl get namespace monitoring > /dev/null 2>&1; then
+                        echo "Creating monitoring namespace..."
+                        kubectl create namespace monitoring
+                    fi
+                    
                     # Add Helm repository if needed
                     echo "Adding Prometheus Helm repository..."
                     helm repo add prometheus-community https://prometheus-community.github.io/helm-charts || echo "Helm repo already exists"
                     helm repo update
                     
+                    # Check if Prometheus is already installed
+                    if ! helm list -n monitoring | grep prometheus > /dev/null 2>&1; then
+                        echo "Installing Prometheus with minimal resources..."
+                        helm install prometheus prometheus-community/kube-prometheus-stack \
+                            -n monitoring \
+                            -f monitoring/minimal-monitoring-values.yaml \
+                            --set grafana.service.type=ClusterIP \
+                            --set prometheus.service.type=ClusterIP || echo "Prometheus installation skipped, may already exist"
+                    else
+                        echo "Prometheus already installed, upgrading with minimal resources..."
+                        helm upgrade prometheus prometheus-community/kube-prometheus-stack \
+                            -n monitoring \
+                            -f monitoring/minimal-monitoring-values.yaml \
+                            --set grafana.service.type=ClusterIP \
+                            --set prometheus.service.type=ClusterIP || echo "Prometheus upgrade skipped"
+                    fi
+                    
                     # Apply ServiceMonitor and Dashboard ConfigMap
                     echo "Creating ServiceMonitor for Abstergo app..."
-                    kubectl apply -f k8s/servicemonitor.yaml
+                    kubectl apply -f monitoring/servicemonitor.yaml || kubectl apply -f k8s/servicemonitor.yaml
                     
                     echo "Creating Grafana dashboard for Abstergo app..."
-                    kubectl apply -f k8s/grafana-dashboard.yaml
+                    kubectl apply -f monitoring/dashboard.yaml || kubectl apply -f k8s/grafana-dashboard.yaml
                     
                     echo "=== Monitoring Installation Complete ==="
                 '''

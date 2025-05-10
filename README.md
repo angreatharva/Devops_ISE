@@ -105,3 +105,46 @@ To clean up resources:
 ./scripts/deploy.sh delete        # Remove application from Kubernetes
 ```
 
+## Pipeline Fixes
+
+The following issues were fixed in the Jenkins pipeline:
+
+1. **YAML Syntax Error in service.yaml**: Fixed indentation issue in the service port configuration.
+
+2. **Duplicate Port Definition in deployment.yaml**: Removed duplicate containerPort 9113 from the main container, keeping it only in the metrics container.
+
+3. **Path References**: Updated file paths in the Jenkinsfile to correctly reference monitoring configuration files, with fallback paths.
+
+4. **Monitoring Configuration**: Enhanced the monitoring setup to handle different directory structures and added error handling.
+
+5. **Verification Script**: Added a verification script (`scripts/verify_pipeline.sh`) to check for common errors before running the pipeline.
+
+To verify the configuration before running the pipeline:
+
+```bash
+./scripts/verify_pipeline.sh
+```
+
+## Running the Pipeline
+
+The pipeline has several stages:
+
+1. **Prepare**: Sets the build number
+2. **Build**: Builds the Docker images for the main app and metrics server
+3. **Update Deployment**: Updates the Kubernetes deployment files with the current version
+4. **Deploy**: Deploys the application to Kubernetes
+5. **Setup Monitoring**: Configures Prometheus and Grafana for monitoring
+6. **Cleanup**: Removes local Docker images
+
+## Monitoring
+
+The application is monitored using Prometheus and Grafana. The metrics are exposed on port 9113 and collected by Prometheus using ServiceMonitor.
+
+To access the Grafana dashboard:
+
+```bash
+kubectl port-forward -n monitoring svc/prometheus-grafana 3000:80
+```
+
+Then open http://localhost:3000 in your browser (default credentials: admin/prom-operator).
+
