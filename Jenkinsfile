@@ -22,20 +22,23 @@ pipeline {
     stages {
         stage('Prepare') {
             steps {
-                sh '''
-                    # Get latest build number from Docker Hub
-                    BUILD_NUMBER=$(curl -s "https://registry.hub.docker.com/v2/repositories/${DOCKER_IMAGE}/tags?page_size=100" | grep -o '"name":"[0-9]*"' | grep -o '[0-9]*' | sort -n | tail -n 1)
-                    if [ -z "$BUILD_NUMBER" ]; then
-                        BUILD_NUMBER=0
-                    fi
-                    NEW_BUILD_NUMBER=$((BUILD_NUMBER + 1))
-                    echo "NEW_BUILD_NUMBER=${NEW_BUILD_NUMBER}" > build.properties
-                '''
-                
-                // Load the build properties
                 script {
-                    def props = readProperties file: 'build.properties'
-                    env.NEW_BUILD_NUMBER = props.NEW_BUILD_NUMBER
+                    // Get latest build number from Docker Hub and increment it
+                    def buildNumber = sh(
+                        script: '''
+                            # Get latest build number from Docker Hub
+                            BUILD_NUMBER=$(curl -s "https://registry.hub.docker.com/v2/repositories/${DOCKER_IMAGE}/tags?page_size=100" | grep -o '"name":"[0-9]*"' | grep -o '[0-9]*' | sort -n | tail -n 1)
+                            if [ -z "$BUILD_NUMBER" ]; then
+                                BUILD_NUMBER=0
+                            fi
+                            NEW_BUILD_NUMBER=$((BUILD_NUMBER + 1))
+                            echo $NEW_BUILD_NUMBER
+                        ''',
+                        returnStdout: true
+                    ).trim()
+                    
+                    // Set environment variable directly
+                    env.NEW_BUILD_NUMBER = buildNumber
                     echo "Building with version: ${env.NEW_BUILD_NUMBER}"
                 }
             }
@@ -96,7 +99,7 @@ pipeline {
         
         stage('Setup Monitoring') {
             steps {
-                sh '''
+                    sh '''
                     echo "=== Installing Monitoring for Abstergo Application ==="
                     # Check if Kubernetes is accessible
                     if ! kubectl cluster-info > /dev/null 2>&1; then
@@ -124,7 +127,7 @@ pipeline {
         
         stage('Cleanup') {
             steps {
-                sh '''
+                    sh '''
                     # Clean up local Docker images, but don't fail the build if they're not found
                     docker rmi ${DOCKER_IMAGE}:${NEW_BUILD_NUMBER} || true
                     docker rmi ${DOCKER_IMAGE}:latest || true
@@ -146,4 +149,4 @@ pipeline {
             cleanWs()
         }
     }
-} 
+}
