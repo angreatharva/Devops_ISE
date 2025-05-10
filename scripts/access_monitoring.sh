@@ -68,7 +68,7 @@ is_port_in_use() {
 }
 
 # Find available ports
-GRAF_PORT=3000
+GRAF_PORT=3100
 
 while is_port_in_use $GRAF_PORT; do
     GRAF_PORT=$((GRAF_PORT + 1))
