@@ -30,16 +30,16 @@ pipeline {
                             # Use a more reliable approach to get the latest tag
                             # Get directly from pipeline-utility-steps plugin or use a fallback
                             NEW_BUILD_NUMBER=67
-                            echo "Current build is $NEW_BUILD_NUMBER"
                             
                             # Try to get latest from Docker Hub
                             LATEST_BUILD=$(curl -s "https://registry.hub.docker.com/v2/repositories/${DOCKER_IMAGE}/tags?page_size=100" | grep -o '"name":"[0-9]*"' | grep -o '[0-9]*' | sort -rn | head -n 1 || echo "")
                             
                             if [ ! -z "$LATEST_BUILD" ] && [ "$LATEST_BUILD" -ge "$NEW_BUILD_NUMBER" ]; then
                                 NEW_BUILD_NUMBER=$((LATEST_BUILD + 1))
-                                echo "Found newer build in Docker Hub: $LATEST_BUILD, incrementing to $NEW_BUILD_NUMBER"
+                                echo "Found newer build in Docker Hub: $LATEST_BUILD, incrementing to $NEW_BUILD_NUMBER" >&2
                             fi
                             
+                            # Just return the number without additional text
                             echo $NEW_BUILD_NUMBER
                         ''',
                         returnStdout: true
