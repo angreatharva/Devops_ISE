@@ -1,62 +1,97 @@
 #!/bin/bash
-# Script to install minimal resource monitoring for Abstergo application
+# Minimal monitoring installation script for low-resource environments
+# This script installs Prometheus and Grafana with minimal resource settings
 
-# Check if kubectl is installed
+echo "=== Installing Minimal Monitoring Stack ==="
+
+# Check if kubectl is available
 if ! command -v kubectl &> /dev/null; then
-    echo "kubectl is not installed. Please install it first."
+    echo "Error: kubectl not found. Please install kubectl."
     exit 1
 fi
 
-# Check if minikube is running
-if ! minikube status | grep -q "Running"; then
-    echo "Minikube is not running. Would you like to start it with minimal resources? (y/n)"
-    read -r answer
-    if [[ "$answer" =~ ^[Yy]$ ]]; then
-        echo "Starting Minikube with minimal resources..."
-        minikube start --memory 1500 --cpus 2
-    else
-        echo "Please start Minikube manually and try again."
-        exit 1
+# Check if helm is available
+if ! command -v helm &> /dev/null; then
+    echo "Error: helm not found. Please install helm."
+    exit 1
+fi
+
+# Check if Kubernetes is accessible
+echo "Checking Kubernetes connection..."
+if ! kubectl cluster-info &> /dev/null; then
+    echo "Error: Cannot connect to Kubernetes cluster."
+    echo "Please check your kubeconfig file or cluster status."
+    exit 1
+fi
+
+# Check if Minikube is running with enough resources
+if command -v minikube &> /dev/null; then
+    MINIKUBE_STATUS=$(minikube status -f '{{.Host}}' 2>/dev/null)
+    if [ "$MINIKUBE_STATUS" == "Running" ]; then
+        echo "Minikube is running. Checking resources..."
+        MINIKUBE_MEM=$(minikube config view | grep memory | awk '{print $3}')
+        if [ ! -z "$MINIKUBE_MEM" ] && [ "$MINIKUBE_MEM" -lt 1900 ]; then
+            echo "Warning: Minikube is running with less than 1900MB memory."
+            echo "Monitoring stack may not function properly."
+            echo "Consider stopping minikube and restarting with: minikube start --memory=1900m"
+            read -p "Continue anyway? (y/n): " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                exit 1
+            fi
+        else
+            echo "Minikube resources look good."
+        fi
     fi
 fi
 
-# Check if helm is installed
-if ! command -v helm &> /dev/null; then
-    echo "Helm is not installed. Installing it now..."
-    curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
-    chmod 700 get_helm.sh
-    ./get_helm.sh
-    rm get_helm.sh
-fi
-
-echo "=== Installing Minimal Monitoring for Abstergo Application ==="
-
-# Add Prometheus Helm repository
-echo "Adding Prometheus Helm repository..."
-helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-helm repo update
-
-# Create monitoring namespace if it doesn't exist
-if ! kubectl get namespace monitoring &>/dev/null; then
+# Create monitoring namespace if not exists
+if ! kubectl get namespace monitoring &> /dev/null; then
     echo "Creating monitoring namespace..."
     kubectl create namespace monitoring
+else
+    echo "Monitoring namespace already exists."
 fi
 
-# Install Prometheus Operator with minimal resources
-echo "Installing Prometheus and Grafana with minimal resources..."
-helm install monitoring prometheus-community/kube-prometheus-stack \
-    --namespace monitoring \
-    --values monitoring/minimal-monitoring-values.yaml \
-    --set prometheus.prometheusSpec.podMonitorSelectorNilUsesHelmValues=false \
-    --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false
+# Add Helm repository for Prometheus
+echo "Adding Prometheus Helm repository..."
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts || true
+helm repo update
 
-# Create ServiceMonitor for Abstergo app
-echo "Creating ServiceMonitor for Abstergo app..."
-kubectl apply -f monitoring/servicemonitor.yaml
+# Check if monitoring stack is already installed
+if helm list -n monitoring | grep prometheus &> /dev/null; then
+    echo "Prometheus is already installed. Upgrading with minimal resources..."
+    HELM_CMD="upgrade"
+else
+    echo "Installing Prometheus with minimal resources..."
+    HELM_CMD="install"
+fi
 
-# Create dashboard ConfigMap
-echo "Creating Grafana dashboard for Abstergo app..."
-kubectl apply -f monitoring/dashboard.yaml
+# Install/upgrade Prometheus stack with minimal resources
+helm $HELM_CMD prometheus prometheus-community/kube-prometheus-stack \
+    -n monitoring \
+    -f ../monitoring/minimal-monitoring-values.yaml \
+    --set grafana.service.type=ClusterIP \
+    --set prometheus.service.type=ClusterIP
 
+# Wait for pods to start
+echo "Waiting for monitoring pods to start..."
+kubectl wait --for=condition=ready pods -l app=grafana -n monitoring --timeout=300s || true
+kubectl wait --for=condition=ready pods -l app=prometheus -n monitoring --timeout=300s || true
+
+# Apply ServiceMonitor for Abstergo
+echo "Applying ServiceMonitor for Abstergo application..."
+kubectl apply -f ../k8s/servicemonitor.yaml
+
+# Apply Grafana dashboard
+echo "Applying Grafana dashboard for Abstergo application..."
+kubectl apply -f ../k8s/grafana-dashboard.yaml
+
+echo ""
 echo "=== Monitoring Installation Complete ==="
-echo "To access monitoring dashboards, run: ./scripts/monitoring.sh access" 
+echo ""
+echo "To access the monitoring dashboards, run: ./access_monitoring.sh"
+echo "To generate test data, run: ./generate_test_data.sh"
+echo ""
+echo "Note: If you're running on a low-memory system, you may need to close"
+echo "other applications to ensure everything runs smoothly." 

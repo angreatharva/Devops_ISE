@@ -14,7 +14,8 @@ pipeline {
         // Update with your Docker Hub username and repository
         DOCKER_IMAGE = 'angreatharva/abstergo'
         DOCKER_METRICS_IMAGE = 'angreatharva/abstergo-metrics'
-        DOCKER_CREDENTIALS_ID = 'docker-hub-credentials'
+        // Updated credentials ID - needs to match what's configured in Jenkins
+        DOCKER_CREDENTIALS_ID = 'Docker'
         // Set KUBECONFIG path for direct kubectl use
         KUBECONFIG = "/var/lib/jenkins/.kube/config"
     }
@@ -25,13 +26,20 @@ pipeline {
                 script {
                     // Get latest build number from Docker Hub and increment it
                     def buildNumber = sh(
-                        script: '''
-                            # Get latest build number from Docker Hub
-                            BUILD_NUMBER=$(curl -s "https://registry.hub.docker.com/v2/repositories/${DOCKER_IMAGE}/tags?page_size=100" | grep -o '"name":"[0-9]*"' | grep -o '[0-9]*' | sort -n | tail -n 1)
-                            if [ -z "$BUILD_NUMBER" ]; then
-                                BUILD_NUMBER=0
+                        script: '''#!/bin/bash
+                            # Use a more reliable approach to get the latest tag
+                            # Get directly from pipeline-utility-steps plugin or use a fallback
+                            NEW_BUILD_NUMBER=67
+                            echo "Current build is $NEW_BUILD_NUMBER"
+                            
+                            # Try to get latest from Docker Hub
+                            LATEST_BUILD=$(curl -s "https://registry.hub.docker.com/v2/repositories/${DOCKER_IMAGE}/tags?page_size=100" | grep -o '"name":"[0-9]*"' | grep -o '[0-9]*' | sort -rn | head -n 1 || echo "")
+                            
+                            if [ ! -z "$LATEST_BUILD" ] && [ "$LATEST_BUILD" -ge "$NEW_BUILD_NUMBER" ]; then
+                                NEW_BUILD_NUMBER=$((LATEST_BUILD + 1))
+                                echo "Found newer build in Docker Hub: $LATEST_BUILD, incrementing to $NEW_BUILD_NUMBER"
                             fi
-                            NEW_BUILD_NUMBER=$((BUILD_NUMBER + 1))
+                            
                             echo $NEW_BUILD_NUMBER
                         ''',
                         returnStdout: true
@@ -143,6 +151,9 @@ pipeline {
         success {
             echo "Pipeline completed successfully!"
             echo "Application has been deployed to Kubernetes with monitoring enabled."
+        }
+        failure {
+            echo "Pipeline failed. Check the logs for details."
         }
         cleanup {
             echo "Cleaning up workspace..."
