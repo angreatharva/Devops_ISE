@@ -109,7 +109,7 @@ fi
 echo
 echo "=== Access Information ==="
 echo "Grafana:"
-echo "  URL: http://localhost:$GRAFANA_PORT"
+echo "  URL: http://localhost:3001"
 echo "  Username: $GRAFANA_USER"
 echo "  Password: $GRAFANA_PASSWORD"
 echo
