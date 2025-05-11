@@ -2,110 +2,134 @@
 # Access script for monitoring dashboards
 # This script creates port forwards to access Prometheus and Grafana
 
-echo "=== Setting up access to monitoring dashboards ==="
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
 
-# First check if minikube is running
-if ! minikube status &>/dev/null; then
-    echo "ERROR: Minikube is not running. Please start it with: minikube start"
-    echo ""
-    echo "IMPORTANT: Starting Minikube requires significant resources."
-    echo "Consider closing other applications before starting Minikube."
-    echo "Minimum recommended: 2GB RAM and 2 CPU cores available."
-    echo ""
-    echo "If you prefer not to start Minikube now, you can:"
-    echo "1. Run: scripts/check_monitoring_status.sh - to check your monitoring configuration"
-    echo "2. Start Minikube when you have adequate resources available"
-    exit 1
-fi
-
-# Check if kubectl is available
-if ! command -v kubectl &> /dev/null; then
-    echo "Error: kubectl not found. Please install kubectl."
-    exit 1
-fi
-
-# Check if Kubernetes is accessible
-echo "Checking Kubernetes connection..."
-if ! kubectl cluster-info &> /dev/null; then
-    echo "Error: Cannot connect to Kubernetes cluster."
-    echo "Please check your kubeconfig file or cluster status."
-    exit 1
-fi
-
-# Check if monitoring namespace exists
-if ! kubectl get namespace monitoring &> /dev/null; then
-    echo "ERROR: Monitoring namespace not found. Has monitoring been deployed?"
-    echo "Run scripts/install_minimal_monitoring.sh to install monitoring"
-    exit 1
-fi
-
-# Check if Grafana pod is ready
-echo "Checking if Grafana is ready..."
-ATTEMPTS=0
-MAX_ATTEMPTS=30
-
-while [ $ATTEMPTS -lt $MAX_ATTEMPTS ]; do
-    READY_COUNT=$(kubectl get pods -n monitoring -l "app.kubernetes.io/name=grafana" -o jsonpath="{.items[0].status.containerStatuses[?(@.ready==true)].ready}" | wc -w)
-    TOTAL_CONTAINERS=$(kubectl get pods -n monitoring -l "app.kubernetes.io/name=grafana" -o jsonpath="{.items[0].spec.containers[*].name}" | wc -w)
-    
-    if [ "$READY_COUNT" -eq "$TOTAL_CONTAINERS" ]; then
-        echo "Grafana is ready!"
-        break
-    else
-        echo "Waiting for Grafana to be ready... ($READY_COUNT/$TOTAL_CONTAINERS containers ready)"
-        ATTEMPTS=$((ATTEMPTS+1))
-        sleep 5
-    fi
-    
-    if [ $ATTEMPTS -eq $MAX_ATTEMPTS ]; then
-        echo "WARNING: Grafana is not fully ready, but we'll try to proceed anyway."
-    fi
-done
-
-# Function to check if a port is already in use
-is_port_in_use() {
-    lsof -i:"$1" &> /dev/null
+# Function to print error messages
+error() {
+    echo -e "${RED}ERROR: $1${NC}"
 }
 
-# Find available ports
-GRAF_PORT=3100
+# Function to print success messages
+success() {
+    echo -e "${GREEN}SUCCESS: $1${NC}"
+}
 
-while is_port_in_use $GRAF_PORT; do
-    GRAF_PORT=$((GRAF_PORT + 1))
-done
+# Function to print warning messages
+warning() {
+    echo -e "${YELLOW}WARNING: $1${NC}"
+}
+
+# Function to check if a port is in use
+is_port_in_use() {
+    if lsof -Pi :$1 -sTCP:LISTEN -t >/dev/null ; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Function to find an available port starting from a base port
+find_available_port() {
+    local base_port=$1
+    local port=$base_port
+    while is_port_in_use $port; do
+        port=$((port + 1))
+    done
+    echo $port
+}
+
+# Function to check monitoring namespace and pods
+check_monitoring() {
+    # Check if monitoring namespace exists
+    if ! kubectl get namespace monitoring &> /dev/null; then
+        error "Monitoring namespace not found. Please run ./scripts/setup_monitoring.sh first."
+        exit 1
+    fi
+
+    # Check if Grafana pod exists
+    if ! kubectl get pods -n monitoring -l "app.kubernetes.io/name=grafana" &> /dev/null; then
+        error "Grafana pod not found. Please run ./scripts/setup_monitoring.sh first."
+        exit 1
+    fi
+}
+
+# Function to wait for Grafana to be ready
+wait_for_grafana() {
+    echo "Checking if Grafana is ready..."
+    local attempts=0
+    local max_attempts=30
+
+    while [ $attempts -lt $max_attempts ]; do
+        local ready_count=$(kubectl get pods -n monitoring -l "app.kubernetes.io/name=grafana" -o jsonpath="{.items[0].status.containerStatuses[?(@.ready==true)].ready}" | wc -w)
+        local total_containers=$(kubectl get pods -n monitoring -l "app.kubernetes.io/name=grafana" -o jsonpath="{.items[0].spec.containers[*].name}" | wc -w)
+        
+        if [ "$ready_count" -eq "$total_containers" ]; then
+            success "Grafana is ready!"
+            return 0
+        else
+            echo "Waiting for Grafana to be ready... ($ready_count/$total_containers containers ready)"
+            attempts=$((attempts+1))
+            sleep 5
+        fi
+    done
+
+    warning "Grafana is not fully ready after waiting. Will try to proceed anyway."
+    return 1
+}
+
+# Main execution
+echo "=== Setting up access to monitoring dashboards ==="
+
+# Check monitoring setup
+check_monitoring
+
+# Wait for Grafana to be ready
+wait_for_grafana
+
+# Find available ports
+GRAFANA_PORT=$(find_available_port 3000)
+if [ $GRAFANA_PORT -ne 3000 ]; then
+    warning "Port 3000 is in use. Using port $GRAFANA_PORT for Grafana."
+fi
 
 # Get Grafana credentials
 GRAFANA_USER="admin"
 GRAFANA_PASSWORD=$(kubectl get secret -n monitoring prometheus-grafana -o jsonpath="{.data.admin-password}" | base64 --decode)
 
-echo "=== Grafana Access Information ==="
-echo "URL: http://localhost:$GRAF_PORT"
-echo "Username: $GRAFANA_USER"
-echo "Password: $GRAFANA_PASSWORD"
+if [ -z "$GRAFANA_PASSWORD" ]; then
+    error "Could not retrieve Grafana password. Please check if the secret exists."
+    exit 1
+fi
 
-# Get application access
-APP_NODE_PORT=$(kubectl get svc abstergo-service -o jsonpath="{.spec.ports[0].nodePort}")
-MINIKUBE_IP=$(minikube ip)
-echo ""
-echo "=== Application Access Information ==="
-echo "Application URL: http://$MINIKUBE_IP:$APP_NODE_PORT"
+# Print access information
+echo
+echo "=== Access Information ==="
+echo "Grafana:"
+echo "  URL: http://localhost:$GRAFANA_PORT"
+echo "  Username: $GRAFANA_USER"
+echo "  Password: $GRAFANA_PASSWORD"
+echo
 
-# Start port-forwarding for Grafana
-echo ""
+# Get application access information if available
+if kubectl get svc abstergo-service &> /dev/null; then
+    APP_NODE_PORT=$(kubectl get svc abstergo-service -o jsonpath="{.spec.ports[0].nodePort}")
+    if [ ! -z "$APP_NODE_PORT" ]; then
+        echo "Application:"
+        echo "  URL: http://localhost:$APP_NODE_PORT"
+        echo
+    fi
+fi
+
 echo "Starting port-forwarding for Grafana..."
 echo "Press Ctrl+C to stop port-forwarding when done."
-echo ""
+echo
 echo "To test application metrics, run this in another terminal:"
-echo "scripts/generate_test_data.sh"
-echo ""
+echo "  ./scripts/generate_test_data.sh"
+echo
 
-# Use the correct service name based on your Helm release
-kubectl port-forward -n monitoring svc/prometheus-grafana $GRAF_PORT:80 
-
-# Trap to clean up background processes on exit
-cleanup() {
-    echo "Stopping port forwarding..."
-    exit 0
-}
-
-trap cleanup INT 
+# Start port-forwarding
+exec kubectl port-forward -n monitoring svc/prometheus-grafana $GRAFANA_PORT:80 

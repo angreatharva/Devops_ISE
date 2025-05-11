@@ -165,7 +165,7 @@ To clean up resources:
 ```bash
 ./scripts/monitoring.sh cleanup   # Remove monitoring resources
 ./scripts/deploy.sh delete        # Remove application from Kubernetes
-```
+   ```
 
 ## Pipeline Fixes
 
